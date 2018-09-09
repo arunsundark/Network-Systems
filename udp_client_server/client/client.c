@@ -44,7 +44,10 @@ static inline void socket_addr_init(struct sockaddr_in* my_addr,uint16_t port_no
 int main(int argc, char** argv) { 
     int socket_fd; 
     char buffer[MAX_SIZE]; 
-    char *hello = "Hello from client"; 
+    char requests[5][10] = { "Get","Put","Delete","List","Exit"};
+    int index;
+    for( index=0; index < 5; index++)
+        printf("press %d to %s operation \n ",index,requests[index]);
     struct sockaddr_in   server_addr;
     get_commands_from_user(argc,argv);
     socket_fd = socket_create(PF_INET,SOCK_DGRAM,0);
@@ -53,7 +56,7 @@ int main(int argc, char** argv) {
   
     int n, len; 
       
-    sendto(socket_fd, (const char *)hello, strlen(hello), 
+    sendto(socket_fd, (const char *)requests[0], strlen(requests[0]), 
         MSG_CONFIRM, (const struct sockaddr *) &server_addr,  
             sizeof(server_addr)); 
     printf("Hello message sent.\n"); 
