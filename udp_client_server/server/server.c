@@ -8,7 +8,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h> 
 #include <dirent.h>  
-
+#include <fcntl.h>
 #define MAX_SIZE 1024 
 FILE *foo1;
 FILE *foo2;
@@ -19,7 +19,6 @@ char file_list [10][10];
     
 static inline void get_commands_from_user(int argc,char** argv) {
     strncpy(commands,argv[1],strlen(argv[1])+1);
-  //  printf("commands=%s \n",commands);
 }
 
 static inline int socket_create(int _domain, int _type, int _protocol) {
@@ -29,7 +28,6 @@ static inline int socket_create(int _domain, int _type, int _protocol) {
        exit(1);
  
     } else {
-  //  printf(" socket in function = %d", socket_fd);
     return socket_fd; 
     }
 }
@@ -75,15 +73,20 @@ int server_filesystem_init() {
 int list_all_files() {
  
         int i=0;
-    	DIR *dr = opendir("empty_dir");
+    	DIR *dr = opendir("database");
+        char check_buf [4];
         if(dr==NULL) {
         printf("error in opening directory \n");
         return -1;
         }
         
         while((home_dirent = readdir(dr)) != NULL) {
-            strncpy(file_list[i], home_dirent->d_name, strlen(home_dirent->d_name)+1);
-            i++;
+               // strncpy(check_buf, home_dirent->d_name, strlen(home_dirent->d_name)+1);
+                if(home_dirent->d_name[0] !='.') {
+                    strncpy(file_list[i], home_dirent->d_name, strlen(home_dirent->d_name)+1);
+                    i++;
+                    printf("%s \n",home_dirent->d_name);
+                }
         }
 
         return i;
@@ -95,20 +98,15 @@ int list_all_files() {
 // Driver code 
 int main(int argc, char** argv) { 
     int socket_fd;
-   char buffer[MAX_SIZE]; 
-    char *hello = "Hello from server"; 
+    char buffer[32]; 
+    char* hello = "fuck my life"; 
     struct sockaddr_in server_addr, client_addr; 
     get_commands_from_user(argc,argv); 
     socket_fd = socket_create(PF_INET, SOCK_DGRAM, 0);
-   // printf("socket in main =%d ", socket_fd); 
     int port_no = atoi(commands);
-   // printf("%d \n",port_no);
-    printf("waitall = %d \n", MSG_WAITALL);
-    printf("confirm = %d \n",MSG_CONFIRM); 
     socket_addr_init(&server_addr,port_no); 
     memset(&client_addr, 0, sizeof(client_addr)); 
-    printf("no sf untill filesys init \n");
-    server_filesystem_init(); 
+    printf("working until here \n ");
     int total_files = list_all_files();
     for(int i=0;i < total_files; i++)
     printf("file -%d %s\n ",i+1,file_list[i]);
@@ -116,14 +114,27 @@ int main(int argc, char** argv) {
     uint32_t len; 
     int n;
     n = recvfrom(socket_fd, (char *)buffer, MAX_SIZE,  
-                MSG_WAITALL, ( struct sockaddr *) &client_addr, 
+                0, ( struct sockaddr *) &client_addr, 
                 &len); 
     buffer[n] = '\0'; 
     printf("Client : %s\n", buffer); 
-    sendto(socket_fd, (const char *)hello, strlen(hello),  
-        MSG_CONFIRM, (const struct sockaddr *) &client_addr, 
+    
+
+    FILE* fp4;   
+    fp4 = fopen("database/foo4.txt","r");
+
+    char temp_buf[1024];
+    memset(temp_buf, (int)'\0',1024);
+    fseek(fp4,0L,SEEK_END);
+    int sz = ftell(fp4);
+    fseek(fp4,0L,SEEK_SET);  
+    printf(" sz = %d \n",sz);
+    fread(temp_buf,sz,1,fp4);
+    printf("%s \n",temp_buf);
+    fclose(fp4);  
+    sendto(socket_fd, (const char *)temp_buf, strlen(temp_buf),  
+        0, (const struct sockaddr *) &client_addr, 
             len); 
-    printf("Hello message sent.\n");  
-      
+     
     return 0; 
 } 
