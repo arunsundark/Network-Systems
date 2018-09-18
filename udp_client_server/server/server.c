@@ -1,75 +1,32 @@
- /* server */
-#include <sys/types.h> 
-#include <sys/socket.h> 
-#include <stdio.h> 
-#include <stdlib.h> 
-#include <unistd.h> 
-#include <string.h> 
-#include <arpa/inet.h> 
-#include <netinet/in.h> 
-#include <dirent.h>  
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <dirent.h>
 #include <fcntl.h>
-#define MAX_SIZE 1024 
-FILE *foo1;
-FILE *foo2;
-FILE *foo3;
+#include <errno.h>
+
+
+ 
+#define IP_PROTOCOL 0
+#define PORT_NO 5050
+#define PKT_SIZE 1024
+#define cipherKey 'S'
+#define sendrecvflag 0
+#define nofile "File Not Found!"
 struct dirent *home_dirent;   
 char commands[20];
 char file_list [10][10]; 
-    
-static inline void get_commands_from_user(int argc,char** argv) {
-    strncpy(commands,argv[1],strlen(argv[1])+1);
-}
-
-static inline int socket_create(int _domain, int _type, int _protocol) {
-    int socket_fd = socket(_domain, _type, _protocol);
-    if( socket_fd < 0) {
-       printf("Error in socket creation \n ");
-       exit(1);
- 
-    } else {
-    return socket_fd; 
-    }
-}
 
 
-static inline void socket_addr_init(struct sockaddr_in* my_addr,uint16_t port_no ) {
-    // Filling server information 
-    memset(my_addr, 0, sizeof(*my_addr)); 
-    my_addr->sin_family    = AF_INET; // IPv4 
-    my_addr->sin_addr.s_addr = htonl(INADDR_ANY); 
-    my_addr->sin_port = htons(port_no); 
-} 
-
-static inline void socket_bind(int socket_fd, struct sockaddr_in* my_addr) {
-     
-    // Bind the socket with the server address 
-    if ( bind(socket_fd, (const struct sockaddr *)my_addr,  
-            sizeof(*my_addr)) < 0 ) 
-    { 
-        perror("bind failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-} 
-int server_filesystem_init() {
-
-    foo1 = fopen("foo1.txt","w+");
-    foo2 = fopen("foo2.txt","w+");
-    foo3 = fopen("foo3.txt","w+");
-
-    fprintf(foo1,"%s","I am foo1.txt. I am used for netsys pa-1");
-    fprintf(foo2,"%s","I am foo2.txt. I am used for netsys pa-1");
-    fprintf(foo3,"%s","I am foo3.txt. I am used for netsys pa-1");
-  
-    fclose(foo1);
-    fclose(foo2);
-    fclose(foo3);
- 
-    return 0;
-    
-}
 
 
+
+/*
 int list_all_files() {
  
         int i=0;
@@ -91,50 +48,161 @@ int list_all_files() {
 
         return i;
 }
-
-
-
-
-// Driver code 
-int main(int argc, char** argv) { 
-    int socket_fd;
-    char buffer[32]; 
-    char* hello = "fuck my life"; 
-    struct sockaddr_in server_addr, client_addr; 
-    get_commands_from_user(argc,argv); 
-    socket_fd = socket_create(PF_INET, SOCK_DGRAM, 0);
-    int port_no = atoi(commands);
-    socket_addr_init(&server_addr,port_no); 
-    memset(&client_addr, 0, sizeof(client_addr)); 
-    printf("working until here \n ");
-    int total_files = list_all_files();
+*/
+/*   int total_files = list_all_files();
     for(int i=0;i < total_files; i++)
     printf("file -%d %s\n ",i+1,file_list[i]);
-    socket_bind(socket_fd, &server_addr); 
-    uint32_t len; 
-    int n;
-    n = recvfrom(socket_fd, (char *)buffer, MAX_SIZE,  
-                0, ( struct sockaddr *) &client_addr, 
-                &len); 
-    buffer[n] = '\0'; 
-    printf("Client : %s\n", buffer); 
-    
+           req_buf[0] = buffer[0];
+         //   j++;
+       // } 
+       printf(" buffer +2 = %s",(buffer + 2));
+       printf(" strlen(buffer) = %d",strlen(buffer));
+       switch(atoi(req_buf)) {
+            case 0:
+                memset(file_name,0,strlen(file_name));              
+                for(j=2;j< strlen(buffer);j++) {
+                file_name[j-2] = buffer[j];
+                } 
+               // strcpy((buffer + 2),file_name);
+                printf("file_name=%s\n",file_name); 
+  */
 
-    FILE* fp4;   
-    fp4 = fopen("database/foo4.txt","r");
-
-    char temp_buf[1024];
-    memset(temp_buf, (int)'\0',1024);
-    fseek(fp4,0L,SEEK_END);
-    int sz = ftell(fp4);
-    fseek(fp4,0L,SEEK_SET);  
-    printf(" sz = %d \n",sz);
-    fread(temp_buf,sz,1,fp4);
-    printf("%s \n",temp_buf);
-    fclose(fp4);  
-    sendto(socket_fd, (const char *)temp_buf, strlen(temp_buf),  
-        0, (const struct sockaddr *) &client_addr, 
-            len); 
+// funtion to encrypt
+char Cipher(char ch)
+{
+    return ch ^ cipherKey;
+}
+ 
+// funtion sending file
+/*int sendFile(FILE* fp, char* buf, int s)
+{
+    int i, len;
+    if (fp == NULL) {
+        strcpy(buf, nofile);
+        len = strlen(nofile);
+        buf[len] = EOF;
+    //    for (i = 0; i <= len; i++)
+    //        buf[i] = Cipher(buf[i]);
+        return 1;
+    }
+ 
+    char ch, ch2;
+    for (i = 0; i < s; i++) {
+        ch = fgetc(fp);
+      //  ch2 = Cipher(ch);
+        buf[i] = ch;
+        if (ch == EOF)   {
+            printf("found EOF \n");
+            printf("data= %s\n ",buf);
+            return 1;
+        }
+    }
+             printf("data= %s\n ",buf);
+    return 0;
+}*/
+void get(FILE *fp,char* data_buf, struct sockaddr_in server_addr, int sockfd )
+{   int server_addrlen = sizeof(server_addr);
+    int nb=0;int num_pkts=0;
+    fseek(fp,0,SEEK_END);
+    int file_size = ftell(fp);
+    fseek(fp,0,SEEK_SET);
+    printf("file_size = %d \n ",file_size);
+    while(file_size > 0) {
+        memset(data_buf,0,PKT_SIZE);    
+        fread(data_buf,1,PKT_SIZE,fp);
+        data_buf[PKT_SIZE] = '\0';
+        printf("data= %s\n ",data_buf);
+        nb= sendto(sockfd, data_buf, PKT_SIZE,
+               0, (struct sockaddr*)&server_addr, server_addrlen);
+        file_size =file_size - PKT_SIZE;  
+        printf("file_size = %d \n ",file_size);
+    num_pkts++;    
+             printf("nb in if is %d \n",nb); 
+             printf(" perror = %d \n",errno);
+               
+     }
      
-    return 0; 
-} 
+       
+                // send
+          
+}
+        
+// driver code
+int main(int argc, char** argv)
+{
+    int sockfd, nBytes;
+    struct sockaddr_in server_addr;
+    int server_addrlen = sizeof(server_addr);
+    server_addr.sin_family = AF_INET;
+    int port_no = atoi(argv[1]);
+    server_addr.sin_port = htons(port_no);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    char* data_buf= (char*)malloc(PKT_SIZE * sizeof(char));
+    FILE* fp;
+ 
+    // socket()
+    sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+ 
+    if (sockfd < 0)
+        printf("\nfile descriptor not received!!\n");
+    else
+        printf("\nfile descriptor %d received\n", sockfd);
+ 
+    // bind()
+    if (bind(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == 0)
+        printf("\nSuccessfully binded!\n");
+    else
+        printf("\nBinding Failed!\n");
+ 
+    while (1) {
+        printf("\nWaiting for file name...\n");
+ 
+        // receive file name
+        
+        memset(data_buf,(int)'\0',PKT_SIZE);
+        nBytes = recvfrom(sockfd, data_buf,
+                          PKT_SIZE, 0,
+                          (struct sockaddr*)&server_addr, &server_addrlen);
+        printf(" rxed data = %s \n ",data_buf);
+        char req_buf[3];
+        req_buf[0] = data_buf[0];
+        char file_name[20];
+        memset(file_name,0,strlen(file_name));              
+        strcpy(file_name,data_buf +2);
+        printf("file_name=%s\n",file_name); 
+      
+
+        fp = fopen(file_name, "r");
+        printf("\nFile Name Received: %s\n", file_name);
+        if (fp == NULL)
+            printf("\nFile open failed!\n");
+        else
+            printf("\nFile Successfully opened!\n");
+  /*         while (1) {
+            //   get(fp,data_buf,server_addr, sockfd);
+        
+            // process
+           if (sendFile(fp, data_buf, PKT_SIZE)) {
+                sendto(sockfd, data_buf, PKT_SIZE,
+                       0, 
+                    (struct sockaddr*)&server_addr, server_addrlen);
+                break;
+            }
+ 
+            // send
+            sendto(sockfd, data_buf, PKT_SIZE,
+                   0,
+                (struct sockaddr*)&server_addr, server_addrlen);
+            memset(data_buf,(int)'\0',PKT_SIZE);
+        }
+  */     get(fp,data_buf,server_addr, sockfd);
+         char end_buf[5];
+         strncpy(end_buf,"end",3);
+         sendto(sockfd, end_buf,4,
+               0, (struct sockaddr*)&server_addr, server_addrlen);
+        if (fp != NULL)
+            fclose(fp);
+        
+    }
+    return 0;
+}
