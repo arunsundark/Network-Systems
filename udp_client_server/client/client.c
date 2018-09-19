@@ -62,7 +62,7 @@ int main(int argc, char** argv)
             printf("invalid input \n please enter numbers from 0 to 4 \n"); 
             scanf("%d",&input);
         }
-        data_buf[0] = '1';
+        data_buf[0] = '0';
         data_buf[1] = ',';
         printf("PLEASE ENTER THE FILE NAME \n");
         scanf("%s",file_name);

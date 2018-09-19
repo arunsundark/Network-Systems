@@ -122,9 +122,7 @@ void get(FILE *fp,char* data_buf, struct sockaddr_in server_addr, int sockfd )
                
      }
      
-       
-                // send
-          
+         
 }
         
 // driver code
@@ -139,7 +137,8 @@ int main(int argc, char** argv)
     server_addr.sin_addr.s_addr = INADDR_ANY;
     char* data_buf= (char*)malloc(PKT_SIZE * sizeof(char));
     FILE* fp;
- 
+    char file_name[20];
+        
     // socket()
     sockfd = socket(PF_INET, SOCK_DGRAM, 0);
  
@@ -166,43 +165,28 @@ int main(int argc, char** argv)
         printf(" rxed data = %s \n ",data_buf);
         char req_buf[3];
         req_buf[0] = data_buf[0];
-        char file_name[20];
-        memset(file_name,0,strlen(file_name));              
-        strcpy(file_name,data_buf +2);
-        printf("file_name=%s\n",file_name); 
-      
-
-        fp = fopen(file_name, "r");
-        printf("\nFile Name Received: %s\n", file_name);
-        if (fp == NULL)
-            printf("\nFile open failed!\n");
-        else
-            printf("\nFile Successfully opened!\n");
-  /*         while (1) {
-            //   get(fp,data_buf,server_addr, sockfd);
-        
-            // process
-           if (sendFile(fp, data_buf, PKT_SIZE)) {
-                sendto(sockfd, data_buf, PKT_SIZE,
-                       0, 
-                    (struct sockaddr*)&server_addr, server_addrlen);
+        switch(atoi(req_buf)) {
+            case 0:
+		memset(file_name,0,strlen(file_name));              
+		strcpy(file_name,data_buf +2);
+		printf("file_name=%s\n",file_name); 
+		fp = fopen(file_name, "r");
+		printf("\nFile Name Received: %s\n", file_name);
+		if (fp == NULL)
+		    printf("\nFile open failed!\n");
+		else
+		    printf("\nFile Successfully opened!\n");
+		get(fp,data_buf,server_addr, sockfd);
+		char end_buf[5];
+		strncpy(end_buf,"end",3);
+		sendto(sockfd, end_buf,4,
+		        0, (struct sockaddr*)&server_addr, server_addrlen);
+		if(fp != NULL)
+		     fclose(fp);
                 break;
-            }
- 
-            // send
-            sendto(sockfd, data_buf, PKT_SIZE,
-                   0,
-                (struct sockaddr*)&server_addr, server_addrlen);
-            memset(data_buf,(int)'\0',PKT_SIZE);
+           default :
+                break;
         }
-  */     get(fp,data_buf,server_addr, sockfd);
-         char end_buf[5];
-         strncpy(end_buf,"end",3);
-         sendto(sockfd, end_buf,4,
-               0, (struct sockaddr*)&server_addr, server_addrlen);
-        if (fp != NULL)
-            fclose(fp);
-        
     }
     return 0;
 }
