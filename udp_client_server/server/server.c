@@ -26,11 +26,11 @@ char file_list [10][10];
 
 
 
-/*
+
 int list_all_files() {
  
         int i=0;
-    	DIR *dr = opendir("database");
+    	DIR *dr = opendir(".");
         char check_buf [4];
         if(dr==NULL) {
         printf("error in opening directory \n");
@@ -48,58 +48,14 @@ int list_all_files() {
 
         return i;
 }
-*/
-/*   int total_files = list_all_files();
-    for(int i=0;i < total_files; i++)
-    printf("file -%d %s\n ",i+1,file_list[i]);
-           req_buf[0] = buffer[0];
-         //   j++;
-       // } 
-       printf(" buffer +2 = %s",(buffer + 2));
-       printf(" strlen(buffer) = %d",strlen(buffer));
-       switch(atoi(req_buf)) {
-            case 0:
-                memset(file_name,0,strlen(file_name));              
-                for(j=2;j< strlen(buffer);j++) {
-                file_name[j-2] = buffer[j];
-                } 
-               // strcpy((buffer + 2),file_name);
-                printf("file_name=%s\n",file_name); 
-  */
 
+     
 // funtion to encrypt
 char Cipher(char ch)
 {
     return ch ^ cipherKey;
 }
  
-// funtion sending file
-/*int sendFile(FILE* fp, char* buf, int s)
-{
-    int i, len;
-    if (fp == NULL) {
-        strcpy(buf, nofile);
-        len = strlen(nofile);
-        buf[len] = EOF;
-    //    for (i = 0; i <= len; i++)
-    //        buf[i] = Cipher(buf[i]);
-        return 1;
-    }
- 
-    char ch, ch2;
-    for (i = 0; i < s; i++) {
-        ch = fgetc(fp);
-      //  ch2 = Cipher(ch);
-        buf[i] = ch;
-        if (ch == EOF)   {
-            printf("found EOF \n");
-            printf("data= %s\n ",buf);
-            return 1;
-        }
-    }
-             printf("data= %s\n ",buf);
-    return 0;
-}*/
 void get(FILE *fp,char* data_buf, struct sockaddr_in server_addr, int sockfd )
 {   int server_addrlen = sizeof(server_addr);
     int nb=0;int num_pkts=0;
@@ -124,6 +80,26 @@ void get(FILE *fp,char* data_buf, struct sockaddr_in server_addr, int sockfd )
      
          
 }
+
+void put(FILE *fp,char* data_buf, struct sockaddr_in server_addr, int sockfd )
+{   int server_addrlen = sizeof(server_addr);
+    int nb=0;int num_pkts=0;
+    while(1) {
+
+        memset(data_buf,0,PKT_SIZE);    
+        nb = recvfrom(sockfd, data_buf, PKT_SIZE, 0,
+                          (struct sockaddr*)&server_addr, &server_addrlen);
+        if(strncmp(data_buf,"end",4)==0) break;
+        fwrite(data_buf,1,PKT_SIZE,fp);
+        printf("nb in if is %d \n",nb); 
+        printf(" perror = %d \n",errno);
+               
+     }
+     
+         
+}
+
+
         
 // driver code
 int main(int argc, char** argv)
@@ -184,7 +160,57 @@ int main(int argc, char** argv)
 		if(fp != NULL)
 		     fclose(fp);
                 break;
-           default :
+            case 1:
+                memset(file_name,0,strlen(file_name));              
+		strcpy(file_name,data_buf +2);
+		printf("file_name=%s\n",file_name); 
+		fp = fopen(file_name, "w");
+		printf("\nFile Name Received: %s\n", file_name);
+		if (fp == NULL)
+		    printf("\nFile open failed!\n");
+		else
+		    printf("\nFile Successfully opened!\n");
+		sendto(sockfd, "rxrdy",6,
+		        0, (struct sockaddr*)&server_addr, server_addrlen);
+		put(fp,data_buf,server_addr, sockfd);
+                printf("gonna close \n");
+		fclose(fp);
+                printf("closed \n");
+                break;
+            case 2:
+                memset(file_name,0,strlen(file_name));              
+		strcpy(file_name,data_buf +2);
+		printf("file_name=%s\n",file_name); 
+	
+		printf("\nFile Name Received: %s\n", file_name);
+		
+		if(remove(file_name) == 0) {
+                        printf(" %s is deleted from the server \n",file_name);
+                        sendto(sockfd, "deleted",8, 0,
+                                 (struct sockaddr*)&server_addr, server_addrlen);
+		} else {
+                        sendto(sockfd, "failed",8, 0,
+                                 (struct sockaddr*)&server_addr, server_addrlen);
+                 }
+                break;
+            case 3:
+                memset(data_buf,0,PKT_SIZE);
+                int total_files = list_all_files();
+                for(int i=0;i < total_files; i++) {
+                    printf("file -%d %s\n ",i+1,file_list[i]);
+                    strcat(data_buf,file_list[i]);
+                    strcat(data_buf,",");
+                }
+                printf("ls \n  %s \n ",data_buf);
+                sendto(sockfd, data_buf,PKT_SIZE, 0,
+                           (struct sockaddr*)&server_addr, server_addrlen);
+		      
+                break; 
+            case 4:
+                printf("server exiting .... \n ");
+                return 0;
+                break;
+          default :
                 break;
         }
     }

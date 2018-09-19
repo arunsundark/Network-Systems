@@ -17,7 +17,27 @@
 // funtion to clear buffer
 
 // function for decryption
+void put(FILE *fp,char* data_buf,struct sockaddr_in server_addr, int sockfd) {
+     int server_addrlen = sizeof(server_addr);
+     int nb =0; int num_pkts = 0;
+     fseek(fp,0,SEEK_END);
+     int file_size = ftell(fp);
+     fseek(fp,0,SEEK_END);
+     printf("file_size = %d \n ",file_size);
+     while(file_size > 0) {
+         memset(data_buf,0,PKT_SIZE);
+         fread(data_buf,1,PKT_SIZE,fp);
+         data_buf[PKT_SIZE] = '\0';
+         nb = sendto(sockfd, data_buf,PKT_SIZE, 0,
+                        (struct sockaddr*)&server_addr, server_addrlen);
+         file_size = file_size - PKT_SIZE;
+         printf("file_size = %d \n",file_size);
+         num_pkts++;
+     }
 
+}  
+
+                    
  
 // function to receive file
 int recvFile(char* buf, int s,FILE *fp)
@@ -93,7 +113,61 @@ int main(int argc, char** argv)
 		    fclose(fp);     
                 break;
             case 1:
+                printf("PLEASE ENTER THE FILE NAME \n");
+		scanf("%s",file_name);
+		printf("file_name = %s \n",file_name);
+		strcpy(data_buf+2,file_name);
+		printf("data_buf = %s \n",data_buf);
+		sendto(sockfd, data_buf, PKT_SIZE,
+		   0, (struct sockaddr*)&server_addr, addrlen);
+                memset(data_buf,0,PKT_SIZE);
+                nBytes = recvfrom(sockfd, data_buf, PKT_SIZE,
+				    0, (struct sockaddr*)&server_addr, &addrlen);
+		if(strncmp(data_buf,"rxrdy",6)==0) {
+             	    fp = fopen(file_name,"r");
+                    put(fp,data_buf,server_addr,sockfd);
+                    sendto(sockfd, "end", 4, 0,
+                            (struct sockaddr*)&server_addr, addrlen);
+                    fclose(fp); 
+                }
+		break;
+            case 2:
+                printf("PLEASE ENTER THE FILE NAME \n");
+		scanf("%s",file_name);
+		printf("file_name = %s \n",file_name);
+		strcpy(data_buf+2,file_name);
+		printf("data_buf = %s \n",data_buf);
+		sendto(sockfd, data_buf, PKT_SIZE,
+		   0, (struct sockaddr*)&server_addr, addrlen);
+                memset(data_buf,0,PKT_SIZE);
+                nBytes = recvfrom(sockfd, data_buf, PKT_SIZE,
+				    0, (struct sockaddr*)&server_addr, &addrlen);
+		if(strncmp(data_buf,"deleted",8)==0) {
+                    printf("%s is deleted successfully \n ",file_name);      
+                } else {
+                    printf("%s cannot deleted. OPeration failed \n",file_name);
+                }
                 break;
+            case 3:
+       	        sendto(sockfd, data_buf, PKT_SIZE,
+		        0, (struct sockaddr*)&server_addr, addrlen);
+                memset(data_buf,0,PKT_SIZE);
+                nBytes = recvfrom(sockfd, data_buf, PKT_SIZE,
+				    0, (struct sockaddr*)&server_addr, &addrlen);
+	         int index =0;
+                 for(index = 0;data_buf[index] != '\0';index ++) {
+                     if(data_buf[index] != ',') 
+                         printf("%c",data_buf[index]);  	
+                     else printf("\n");
+                 }
+                 break; 
+             case 4:
+                 sendto(sockfd, data_buf, PKT_SIZE,
+		        0, (struct sockaddr*)&server_addr, addrlen);
+                 memset(data_buf,0,PKT_SIZE);
+                 nBytes = recvfrom(sockfd, data_buf, PKT_SIZE,
+				    0, (struct sockaddr*)&server_addr, &addrlen);
+	         break; 
             default :
                 break;
         }                         
