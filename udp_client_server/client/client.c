@@ -62,35 +62,43 @@ int main(int argc, char** argv)
             printf("invalid input \n please enter numbers from 0 to 4 \n"); 
             scanf("%d",&input);
         }
-        data_buf[0] = '0';
+        data_buf[0] = (char)(input + 48);
         data_buf[1] = ',';
-        printf("PLEASE ENTER THE FILE NAME \n");
-        scanf("%s",file_name);
-        printf("file_name = %s \n",file_name);
-        strcpy(data_buf+2,file_name);
-        printf("data_buf = %s \n",data_buf);
-        sendto(sockfd, data_buf, PKT_SIZE,
-               0, (struct sockaddr*)&server_addr,
-               addrlen);
- 
-        printf("\n---------Data Received---------\n");
-        FILE *fp = fopen(file_name,"w");
-        while (1) {
-            // receive
-            memset(data_buf,(int)'\0',PKT_SIZE);
-            nBytes = recvfrom(sockfd, data_buf, PKT_SIZE,
-                              0, (struct sockaddr*)&server_addr,
-                              &addrlen);
-            printf("file rxed\n ");
-            // process
-            if(strncmp(data_buf,"end",3+1)== 0)
-                  break;
-            recvFile(data_buf, PKT_SIZE,fp); 
-                
-            if(nBytes <1024) break;
-            }  
-        fclose(fp);       
-        printf("\n-------------------------------\n");
+        switch(input) {
+            case 0:
+		printf("PLEASE ENTER THE FILE NAME \n");
+		scanf("%s",file_name);
+		printf("file_name = %s \n",file_name);
+		strcpy(data_buf+2,file_name);
+		printf("data_buf = %s \n",data_buf);
+		sendto(sockfd, data_buf, PKT_SIZE,
+		   0, (struct sockaddr*)&server_addr,
+				    addrlen);
+    	        printf("\n---------Data Received---------\n");
+		fp = fopen(file_name,"w");
+		while (1) {
+	            // receive
+		    memset(data_buf,(int)'\0',PKT_SIZE);
+		    nBytes = recvfrom(sockfd, data_buf, PKT_SIZE,
+				    0, (struct sockaddr*)&server_addr,
+				    &addrlen);
+		    printf("file rxed\n ");
+			    // process
+		    if(strncmp(data_buf,"end",3+1)== 0)
+				    break;
+		     recvFile(data_buf, PKT_SIZE,fp); 
+
+		     if(nBytes <1024) break;
+		    }  
+		    fclose(fp);     
+                break;
+            case 1:
+                break;
+            default :
+                break;
+        }                         
+
+		    printf("\n-------------------------------\n");
     }
     return 0;
 }
