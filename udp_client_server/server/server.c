@@ -22,7 +22,12 @@ struct dirent *home_dirent;
 char commands[20];
 char file_list [10][10]; 
 
+typedef struct {
 
+int pkt_num;
+char data_buf[PKT_SIZE];
+
+} udp_packet_t;
 
 
 
@@ -51,25 +56,37 @@ int list_all_files() {
 
 
  
-void get(FILE *fp,char* data_buf, struct sockaddr_in server_addr, int sockfd )
+void get(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sockfd )
 {   int server_addrlen = sizeof(server_addr);
+    int udp_packet_size = sizeof(packet->pkt_num) + sizeof(packet->data_buf);
     int nb=0;int num_pkts=0;
+    packet->pkt_num = 0;
     fseek(fp,0,SEEK_END);
     int file_size = ftell(fp);
     fseek(fp,0,SEEK_SET);
     printf("file_size = %d \n ",file_size);
     while(file_size > 0) {
-        memset(data_buf,0,PKT_SIZE);    
-        fread(data_buf,1,PKT_SIZE,fp);
-        data_buf[PKT_SIZE] = '\0';
-        printf("data= %s\n ",data_buf);
-        nb= sendto(sockfd, data_buf, PKT_SIZE,
+        memset(packet->data_buf,0,PKT_SIZE);    
+        fread(packet->data_buf,1,PKT_SIZE,fp);
+        packet->pkt_num++;
+
+        packet->data_buf[PKT_SIZE] = '\0';
+        printf("data= %s\n ",packet->data_buf);
+        nb= sendto(sockfd, packet, udp_packet_size,
                0, (struct sockaddr*)&server_addr, server_addrlen);
+        nb = recvfrom(sockfd, &num_pkts, sizeof(num_pkts), 0,
+                          (struct sockaddr*)&server_addr, &server_addrlen);
+        while(num_pkts != packet->pkt_num) {
+            nb= sendto(sockfd, packet, udp_packet_size,
+               0, (struct sockaddr*)&server_addr, server_addrlen);
+            nb = recvfrom(sockfd, &num_pkts, sizeof(num_pkts), 0,
+                          (struct sockaddr*)&server_addr, &server_addrlen);
+        }
         file_size =file_size - PKT_SIZE;  
         printf("file_size = %d \n ",file_size);
-    num_pkts++;    
-             printf("nb in if is %d \n",nb); 
-             printf(" perror = %d \n",errno);
+        
+        printf("nb in if is %d \n",nb); 
+        printf(" perror = %d \n",errno);
                
      }
      
@@ -109,7 +126,8 @@ int main(int argc, char** argv)
     char* data_buf= (char*)malloc(PKT_SIZE * sizeof(char));
     FILE* fp;
     char file_name[20];
-        
+    udp_packet_t packet;    
+    int udp_packet_size = sizeof(packet.pkt_num) + sizeof(packet.data_buf);
     // socket()
     sockfd = socket(PF_INET, SOCK_DGRAM, 0);
  
@@ -147,11 +165,18 @@ int main(int argc, char** argv)
 		    printf("\nFile open failed!\n");
 		else
 		    printf("\nFile Successfully opened!\n");
-		get(fp,data_buf,server_addr, sockfd);
+		get(fp,&packet,server_addr, sockfd);
 		char end_buf[5];
-		strncpy(end_buf,"end",3);
-		sendto(sockfd, end_buf,4,
+                memset(packet.data_buf,0,PKT_SIZE);
+		strncpy(packet.data_buf,"end",3);
+                packet.pkt_num++;        
+	//	do {
+                    sendto(sockfd, &packet,udp_packet_size,
 		        0, (struct sockaddr*)&server_addr, server_addrlen);
+          //          memset(packet.data_buf,0,PKT_SIZE);
+//		    recvfrom(sockfd, &packet,udp_packet_size,
+//		        0, (struct sockaddr*)&server_addr, &server_addrlen);
+  //              while(!(strncmp(packet.data_buf,"endok",6)==0))     
 		if(fp != NULL)
 		     fclose(fp);
                 break;

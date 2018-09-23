@@ -11,6 +11,16 @@
 #define PKT_SIZE 1024
 
 
+typedef struct {
+
+int pkt_num;
+char data_buf[PKT_SIZE];
+
+} udp_packet_t;
+
+
+
+
 void put(FILE *fp,char* data_buf,struct sockaddr_in server_addr, int sockfd) {
      int server_addrlen = sizeof(server_addr);
      int nb =0; int num_pkts = 0;
@@ -31,19 +41,42 @@ void put(FILE *fp,char* data_buf,struct sockaddr_in server_addr, int sockfd) {
 
 }  
 
-int get(char* data_buf,FILE *fp,struct sockaddr_in server_addr,int sockfd) {
-    int addrlen = sizeof(server_addr);  int nb=0;
+int get(udp_packet_t* packet,FILE *fp,struct sockaddr_in server_addr,int sockfd) {
+    int addrlen = sizeof(server_addr);  int nb=0;int num_pkts=0;
+    int exp_pkt_num=0;
+    int udp_packet_size= sizeof(packet->pkt_num) + sizeof(packet->data_buf);
     while (1) {
 	 
-	memset(data_buf,(int)'\0',PKT_SIZE);
-	nb = recvfrom(sockfd, data_buf, PKT_SIZE,
+	memset(packet->data_buf,(int)'\0',PKT_SIZE);
+        exp_pkt_num++;
+	nb = recvfrom(sockfd,packet, udp_packet_size,
 		    0, (struct sockaddr*)&server_addr, &addrlen);
-        printf("file rxed\n ");
-	if(strncmp(data_buf,"end",3+1)== 0)
+        num_pkts = packet->pkt_num;
+        if(strncmp(packet->data_buf,"end",3+1)== 0)
 	    break;
-	nb  = fwrite(data_buf,1,PKT_SIZE,fp);
+	
+
+        nb = sendto(sockfd,&num_pkts ,sizeof(num_pkts), 0,
+                        (struct sockaddr*)&server_addr, addrlen);
+         
+        printf("rxed packet->pkt_num=%d\n",packet->pkt_num);
+        printf("expt exp_pkt_num=%d\n",exp_pkt_num);
+
+                while(exp_pkt_num != num_pkts) {
+            nb = recvfrom(sockfd,packet, udp_packet_size,
+		    0, (struct sockaddr*)&server_addr, &addrlen);
+            num_pkts = packet->pkt_num;
+            printf("rxed packet->pkt_num=%d\n",packet->pkt_num);
+            printf("expt exp_pkt_num=%d\n",exp_pkt_num);
+
+            nb = sendto(sockfd,&num_pkts ,sizeof(num_pkts), 0,
+                        (struct sockaddr*)&server_addr, addrlen);
+        } 
+//	if(strncmp(packet->data_buf,"end",3+1)== 0)
+//	    break;
+	nb  = fwrite(packet->data_buf,1,PKT_SIZE,fp);
         printf("nb = %d \n ",nb);
-        printf("data rxed = %s \n ",data_buf);   
+        printf("data rxed = %s \n ",packet->data_buf);   
     }
     return 0;
 
@@ -62,6 +95,7 @@ int main(int argc, char** argv)
     FILE* fp;
     char requests[5][25] = { "get [file name]","put [file name]","delete [file name]","ls","exit"};
     int index,j;
+    udp_packet_t packet;
     char file_name[20];
     char com_buf[20];
     memset(file_name, (int)'\0',20);   
@@ -119,7 +153,7 @@ int main(int argc, char** argv)
 				    addrlen);
     	        printf("\n---------Data Received---------\n");
 		fp = fopen(file_name,"w");
-                get(data_buf,fp,server_addr,sockfd);
+                get(&packet,fp,server_addr,sockfd);
 	        fclose(fp);     
                 break;
             case 112:
