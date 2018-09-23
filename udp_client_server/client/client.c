@@ -21,19 +21,32 @@ char data_buf[PKT_SIZE];
 
 
 
-void put(FILE *fp,char* data_buf,struct sockaddr_in server_addr, int sockfd) {
+void put(FILE *fp,udp_packet_t* packet,struct sockaddr_in server_addr, int sockfd) {
      int server_addrlen = sizeof(server_addr);
      int nb =0; int num_pkts = 0;
+     int udp_packet_size= sizeof(packet->pkt_num) + sizeof(packet->data_buf);
+     packet->pkt_num = 0;
      fseek(fp,0,SEEK_END);
      int file_size = ftell(fp);
      fseek(fp,0,SEEK_SET);
      printf("file_size = %d \n ",file_size);
      while(file_size > 0) {
-         memset(data_buf,0,PKT_SIZE);
-         fread(data_buf,1,PKT_SIZE,fp);
-         data_buf[PKT_SIZE] = '\0';
-         nb = sendto(sockfd, data_buf,PKT_SIZE, 0,
+         memset(packet->data_buf,0,PKT_SIZE);
+         fread(packet ->data_buf,1,PKT_SIZE,fp);
+         packet->pkt_num++;
+         packet->data_buf[PKT_SIZE] = '\0';
+         printf("data= %s\n",packet->data_buf);
+         nb = sendto(sockfd, packet,udp_packet_size, 0,
                         (struct sockaddr*)&server_addr, server_addrlen);
+         nb = recvfrom(sockfd, &num_pkts,sizeof(num_pkts), 0,
+                        (struct sockaddr*)&server_addr,&server_addrlen);
+         while(num_pkts != packet->pkt_num) {
+             nb = sendto(sockfd, packet,udp_packet_size, 0,
+                        (struct sockaddr*)&server_addr, server_addrlen);
+             nb = recvfrom(sockfd, &num_pkts,sizeof(num_pkts), 0,
+                        (struct sockaddr*)&server_addr, &server_addrlen);
+         }
+
          file_size = file_size - PKT_SIZE;
          printf("file_size = %d \n",file_size);
          num_pkts++;
@@ -62,7 +75,7 @@ int get(udp_packet_t* packet,FILE *fp,struct sockaddr_in server_addr,int sockfd)
         printf("rxed packet->pkt_num=%d\n",packet->pkt_num);
         printf("expt exp_pkt_num=%d\n",exp_pkt_num);
 
-                while(exp_pkt_num != num_pkts) {
+        while(exp_pkt_num != num_pkts) {
             nb = recvfrom(sockfd,packet, udp_packet_size,
 		    0, (struct sockaddr*)&server_addr, &addrlen);
             num_pkts = packet->pkt_num;
@@ -98,7 +111,8 @@ int main(int argc, char** argv)
     udp_packet_t packet;
     char file_name[20];
     char com_buf[20];
-    memset(file_name, (int)'\0',20);   
+    memset(file_name, (int)'\0',20); 
+    int udp_packet_size= sizeof(packet.pkt_num) + sizeof(packet.data_buf);
     // socket()
     sockfd = socket(AF_INET, SOCK_DGRAM,
                     IP_PROTOCOL);
@@ -168,8 +182,11 @@ int main(int argc, char** argv)
 				    0, (struct sockaddr*)&server_addr, &addrlen);
 		if(strncmp(data_buf,"rxrdy",6)==0) {
              	    fp = fopen(file_name,"r");
-                    put(fp,data_buf,server_addr,sockfd);
-                    sendto(sockfd, "end", 4, 0,
+                    memset(packet.data_buf,0,PKT_SIZE);
+                    put(fp,&packet,server_addr,sockfd);
+                    memset(packet.data_buf,0,PKT_SIZE);
+                    strncpy(packet.data_buf,"end",4);
+                    sendto(sockfd, &packet,udp_packet_size, 0,
                             (struct sockaddr*)&server_addr, addrlen);
                     fclose(fp); 
                 }

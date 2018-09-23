@@ -93,19 +93,38 @@ void get(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
          
 }
 
-void put(FILE *fp,char* data_buf, struct sockaddr_in server_addr, int sockfd )
+void put(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sockfd )
 {   int server_addrlen = sizeof(server_addr);
-    int nb=0;int num_pkts=0;
+    int nb=0;int num_pkts=0;int exp_pkt_num=0;
+    
+    int udp_packet_size = sizeof(packet->pkt_num) + sizeof(packet->data_buf);
+    
     while(1) {
 
-        memset(data_buf,0,PKT_SIZE);    
-        nb = recvfrom(sockfd, data_buf, PKT_SIZE, 0,
+        memset(packet->data_buf,0,PKT_SIZE);
+        exp_pkt_num++;    
+        nb = recvfrom(sockfd, packet, udp_packet_size, 0,
                           (struct sockaddr*)&server_addr, &server_addrlen);
-        if(strncmp(data_buf,"end",4)==0) break;
-        fwrite(data_buf,1,PKT_SIZE,fp);
-        printf("nb in if is %d \n",nb); 
-        printf(" perror = %d \n",errno);
-               
+        num_pkts = packet->pkt_num;
+        if(strncmp(packet->data_buf,"end",4)==0) break;
+        nb= sendto(sockfd, &num_pkts, sizeof(num_pkts),
+               0, (struct sockaddr*)&server_addr, server_addrlen);
+        printf("packet->pkt_num=%d\n",packet->pkt_num);
+ 
+        printf(" exp_pkt_num=%d\n",exp_pkt_num);
+        while(exp_pkt_num != num_pkts) {
+            nb = recvfrom(sockfd, packet, udp_packet_size, 0,
+                          (struct sockaddr*)&server_addr, &server_addrlen);
+            num_pkts = packet->pkt_num;
+        
+            nb= sendto(sockfd, &num_pkts, sizeof(num_pkts),
+               0, (struct sockaddr*)&server_addr, server_addrlen);
+            printf("packet->pkt_num=%d\n",packet->pkt_num);
+ 
+            printf(" exp_pkt_num=%d\n",exp_pkt_num);
+        }
+        fwrite(packet->data_buf,1,PKT_SIZE,fp);
+              
      }
      
          
@@ -192,7 +211,8 @@ int main(int argc, char** argv)
 		    printf("\nFile Successfully opened!\n");
 		sendto(sockfd, "rxrdy",6,
 		        0, (struct sockaddr*)&server_addr, server_addrlen);
-		put(fp,data_buf,server_addr, sockfd);
+                memset(packet.data_buf,0,PKT_SIZE);
+		put(fp,&packet,server_addr, sockfd);
                 fclose(fp);
                 break;
             case 2:
