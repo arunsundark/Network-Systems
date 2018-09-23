@@ -49,12 +49,7 @@ int list_all_files() {
         return i;
 }
 
-     
-// funtion to encrypt
-char Cipher(char ch)
-{
-    return ch ^ cipherKey;
-}
+
  
 void get(FILE *fp,char* data_buf, struct sockaddr_in server_addr, int sockfd )
 {   int server_addrlen = sizeof(server_addr);
@@ -173,9 +168,7 @@ int main(int argc, char** argv)
 		sendto(sockfd, "rxrdy",6,
 		        0, (struct sockaddr*)&server_addr, server_addrlen);
 		put(fp,data_buf,server_addr, sockfd);
-                printf("gonna close \n");
-		fclose(fp);
-                printf("closed \n");
+                fclose(fp);
                 break;
             case 2:
                 memset(file_name,0,strlen(file_name));              
