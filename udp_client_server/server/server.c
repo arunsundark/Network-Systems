@@ -105,6 +105,10 @@ void put(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
         exp_pkt_num++;    
         nb = recvfrom(sockfd, packet, udp_packet_size, 0,
                           (struct sockaddr*)&server_addr, &server_addrlen);
+        if(strncmp(packet->data_buf,"nofile",7)==0) {
+            printf("File not Found\n");
+            break;
+        }
         num_pkts = packet->pkt_num;
         if(strncmp(packet->data_buf,"end",4)==0) {
             printf("ending put\n");
@@ -183,13 +187,13 @@ int main(int argc, char** argv)
 		printf("file_name=%s\n",file_name); 
 		fp = fopen(file_name, "r");
 		printf("\nFile Name Received: %s\n", file_name);
-		if (fp == NULL) 
+		if (fp == NULL) {
 		    printf("\nFile open failed!\n");
-              /*      strncpy(packet.data_buf,"nofile",7);
+                    strncpy(packet.data_buf,"nofile",7);
                     sendto(sockfd, &packet,udp_packet_size,
 		        0, (struct sockaddr*)&server_addr, server_addrlen);
                     break;
-               */ 
+               } 
                  
 		else
 		    printf("\nFile Successfully opened!\n");

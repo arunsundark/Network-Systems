@@ -38,8 +38,10 @@ void put(FILE *fp,udp_packet_t* packet,struct sockaddr_in server_addr, int sockf
       //   printf("data= %s\n",packet->data_buf);
          nb = sendto(sockfd, packet,udp_packet_size, 0,
                         (struct sockaddr*)&server_addr, server_addrlen);
+         printf("after sendto\n");
          nb = recvfrom(sockfd, &num_pkts,sizeof(num_pkts), 0,
                         (struct sockaddr*)&server_addr,&server_addrlen);
+         printf("aftre rx from\n");
          while(num_pkts != packet->pkt_num) {
              nb = sendto(sockfd, packet,udp_packet_size, 0,
                         (struct sockaddr*)&server_addr, server_addrlen);
@@ -64,6 +66,11 @@ int get(udp_packet_t* packet,FILE *fp,struct sockaddr_in server_addr,int sockfd)
         exp_pkt_num++;
 	nb = recvfrom(sockfd,packet, udp_packet_size,
 		    0, (struct sockaddr*)&server_addr, &addrlen);
+        if(strncmp(packet->data_buf,"nofile",7)==0){
+            printf("File not found\n");
+            break;
+        }
+         
         num_pkts = packet->pkt_num;
         if(strncmp(packet->data_buf,"end",3+1)== 0)
 	    break;
@@ -178,10 +185,19 @@ int main(int argc, char** argv)
 		sendto(sockfd, data_buf, PKT_SIZE,
 		   0, (struct sockaddr*)&server_addr, addrlen);
                 memset(data_buf,0,PKT_SIZE);
+                
                 nBytes = recvfrom(sockfd, data_buf, PKT_SIZE,
 				    0, (struct sockaddr*)&server_addr, &addrlen);
 		if(strncmp(data_buf,"rxrdy",6)==0) {
              	    fp = fopen(file_name,"r");
+                    if(fp ==NULL) {
+                    memset(packet.data_buf,0,PKT_SIZE);
+                    strncpy(packet.data_buf,"nofile",7);
+                    sendto(sockfd, &packet,udp_packet_size, 0,
+                            (struct sockaddr*)&server_addr, addrlen);
+                    printf("file not found\n");
+                    break;
+                    }
                     memset(packet.data_buf,0,PKT_SIZE);
                     put(fp,&packet,server_addr,sockfd);
                     memset(packet.data_buf,0,PKT_SIZE);
