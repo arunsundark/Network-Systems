@@ -71,7 +71,7 @@ void get(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
         packet->pkt_num++;
 
         packet->data_buf[PKT_SIZE] = '\0';
-        printf("data= %s\n ",packet->data_buf);
+ //       printf("data= %s\n ",packet->data_buf);
         nb= sendto(sockfd, packet, udp_packet_size,
                0, (struct sockaddr*)&server_addr, server_addrlen);
         nb = recvfrom(sockfd, &num_pkts, sizeof(num_pkts), 0,
@@ -106,7 +106,10 @@ void put(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
         nb = recvfrom(sockfd, packet, udp_packet_size, 0,
                           (struct sockaddr*)&server_addr, &server_addrlen);
         num_pkts = packet->pkt_num;
-        if(strncmp(packet->data_buf,"end",4)==0) break;
+        if(strncmp(packet->data_buf,"end",4)==0) {
+            printf("ending put\n");
+            break;
+        }
         nb= sendto(sockfd, &num_pkts, sizeof(num_pkts),
                0, (struct sockaddr*)&server_addr, server_addrlen);
         printf("packet->pkt_num=%d\n",packet->pkt_num);
@@ -180,8 +183,14 @@ int main(int argc, char** argv)
 		printf("file_name=%s\n",file_name); 
 		fp = fopen(file_name, "r");
 		printf("\nFile Name Received: %s\n", file_name);
-		if (fp == NULL)
+		if (fp == NULL) 
 		    printf("\nFile open failed!\n");
+              /*      strncpy(packet.data_buf,"nofile",7);
+                    sendto(sockfd, &packet,udp_packet_size,
+		        0, (struct sockaddr*)&server_addr, server_addrlen);
+                    break;
+               */ 
+                 
 		else
 		    printf("\nFile Successfully opened!\n");
 		get(fp,&packet,server_addr, sockfd);

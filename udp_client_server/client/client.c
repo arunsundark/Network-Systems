@@ -35,7 +35,7 @@ void put(FILE *fp,udp_packet_t* packet,struct sockaddr_in server_addr, int sockf
          fread(packet ->data_buf,1,PKT_SIZE,fp);
          packet->pkt_num++;
          packet->data_buf[PKT_SIZE] = '\0';
-         printf("data= %s\n",packet->data_buf);
+      //   printf("data= %s\n",packet->data_buf);
          nb = sendto(sockfd, packet,udp_packet_size, 0,
                         (struct sockaddr*)&server_addr, server_addrlen);
          nb = recvfrom(sockfd, &num_pkts,sizeof(num_pkts), 0,
@@ -89,7 +89,7 @@ int get(udp_packet_t* packet,FILE *fp,struct sockaddr_in server_addr,int sockfd)
 //	    break;
 	nb  = fwrite(packet->data_buf,1,PKT_SIZE,fp);
         printf("nb = %d \n ",nb);
-        printf("data rxed = %s \n ",packet->data_buf);   
+       // printf("data rxed = %s \n ",packet->data_buf);   
     }
     return 0;
 
