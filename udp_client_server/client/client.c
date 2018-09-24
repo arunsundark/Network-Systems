@@ -33,19 +33,16 @@ void put(FILE *fp,udp_packet_t* packet,struct sockaddr_in server_addr, int sockf
      printf("file_size = %d \n ",file_size);
      timeout.tv_sec =1;
      timeout.tv_usec =0;
-    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
-    while(file_size > 0) {
+     setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
+     while(file_size > 0) {
          memset(packet->data_buf,0,PKT_SIZE);
          fread(packet ->data_buf,1,PKT_SIZE,fp);
          packet->pkt_num++;
          packet->data_buf[PKT_SIZE] = '\0';
-      //   printf("data= %s\n",packet->data_buf);
          nb = sendto(sockfd, packet,udp_packet_size, 0,
                         (struct sockaddr*)&server_addr, server_addrlen);
-         printf("after sendto\n");
          nb = recvfrom(sockfd, &num_pkts,sizeof(num_pkts), 0,
                         (struct sockaddr*)&server_addr,&server_addrlen);
-         printf("aftre rx from\n");
          while(num_pkts != packet->pkt_num) {
              nb = sendto(sockfd, packet,udp_packet_size, 0,
                         (struct sockaddr*)&server_addr, server_addrlen);
@@ -89,9 +86,6 @@ int get(udp_packet_t* packet,FILE *fp,struct sockaddr_in server_addr,int sockfd)
         nb = sendto(sockfd,&num_pkts ,sizeof(num_pkts), 0,
                         (struct sockaddr*)&server_addr, addrlen);
          
-        printf("rxed packet->pkt_num=%d\n",packet->pkt_num);
-        printf("expt exp_pkt_num=%d\n",exp_pkt_num);
-
         while(exp_pkt_num != num_pkts) {
             nb = recvfrom(sockfd,packet, udp_packet_size,
 		    0, (struct sockaddr*)&server_addr, &addrlen);
@@ -102,9 +96,7 @@ int get(udp_packet_t* packet,FILE *fp,struct sockaddr_in server_addr,int sockfd)
             nb = sendto(sockfd,&num_pkts ,sizeof(num_pkts), 0,
                         (struct sockaddr*)&server_addr, addrlen);
         } 
-//	if(strncmp(packet->data_buf,"end",3+1)== 0)
-//	    break;
-	nb  = fwrite(packet->data_buf,1,PKT_SIZE,fp);
+        nb  = fwrite(packet->data_buf,1,PKT_SIZE,fp);
         printf("nb = %d \n ",nb);
        // printf("data rxed = %s \n ",packet->data_buf);   
     }
@@ -138,9 +130,9 @@ int main(int argc, char** argv)
                     IP_PROTOCOL);
    
     if (sockfd < 0)
-        printf("\nfile descriptor not received!!\n");
+        printf("Socket cannot be created\n");
     else
-        printf("\nfile descriptor %d received\n", sockfd);
+        printf("Socket %d is created\n", sockfd);
     printf("Server is Online \n");
    
     while (1) {
@@ -152,11 +144,6 @@ int main(int argc, char** argv)
             printf("Error in getting input \n");
             continue;
         }
-         
-
-     
-        
-        printf("db=%sxx", data_buf); 
         index =0;
         while(data_buf[index] != ' ' && data_buf[index]!='\n') {
             com_buf[index]=data_buf[index];
@@ -180,9 +167,6 @@ int main(int argc, char** argv)
                 index++;
             }
         file_name[j]='\0';
-        printf("com_buf=%s--\n",com_buf);
-        printf("file_name=%s--\n",file_name);
-        
         }
         memset(data_buf,0,PKT_SIZE);
         switch(input) {
@@ -190,8 +174,6 @@ int main(int argc, char** argv)
 	        data_buf[0] = '0';
                 data_buf[1] = ',';
 		strcpy(data_buf+2,file_name);
-		printf("data_buf = %s \n",data_buf);
-                 
 		sendto(sockfd, data_buf, PKT_SIZE,
 		   0, (struct sockaddr*)&server_addr,
 				    addrlen);
@@ -204,7 +186,6 @@ int main(int argc, char** argv)
                 data_buf[0] = '1';
                 data_buf[1] = ',';
 		strcpy(data_buf+2,file_name);
-		printf("data_buf = %s \n",data_buf);
 		sendto(sockfd, data_buf, PKT_SIZE,
 		   0, (struct sockaddr*)&server_addr, addrlen);
                 memset(data_buf,0,PKT_SIZE);
@@ -234,7 +215,6 @@ int main(int argc, char** argv)
                 data_buf[0] = '2';
                 data_buf[1] = ',';
 		strcpy(data_buf+2,file_name);
-		printf("data_buf = %s \n",data_buf);
 		sendto(sockfd, data_buf, PKT_SIZE,
 		   0, (struct sockaddr*)&server_addr, addrlen);
                 memset(data_buf,0,PKT_SIZE);
@@ -243,7 +223,7 @@ int main(int argc, char** argv)
 		if(strncmp(data_buf,"deleted",8)==0) {
                     printf("%s is deleted successfully \n ",file_name);      
                 } else {
-                    printf("%s cannot deleted. OPeration failed \n",file_name);
+                    printf("%s cannot deleted. Operation failed \n",file_name);
                 }
                 break;
             case 108:

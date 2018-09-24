@@ -44,8 +44,7 @@ int list_all_files() {
         }
         
         while((home_dirent = readdir(dr)) != NULL) {
-               // strncpy(check_buf, home_dirent->d_name, strlen(home_dirent->d_name)+1);
-                if(home_dirent->d_name[0] !='.') {
+               if(home_dirent->d_name[0] !='.') {
                     strncpy(file_list[i], home_dirent->d_name, strlen(home_dirent->d_name)+1);
                     i++;
                     printf("%s \n",home_dirent->d_name);
@@ -75,7 +74,6 @@ void get(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
         packet->pkt_num++;
 
         packet->data_buf[PKT_SIZE] = '\0';
- //       printf("data= %s\n ",packet->data_buf);
         nb= sendto(sockfd, packet, udp_packet_size,
                0, (struct sockaddr*)&server_addr, server_addrlen);
         nb = recvfrom(sockfd, &num_pkts, sizeof(num_pkts), 0,
@@ -87,11 +85,7 @@ void get(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
                           (struct sockaddr*)&server_addr, &server_addrlen);
         }
         file_size =file_size - PKT_SIZE;  
-        printf("file_size = %d \n ",file_size);
-        
-        printf("nb in if is %d \n",nb); 
-        printf(" perror = %d \n",errno);
-               
+        printf("file_size = %d \n ",file_size);              
      }
     timeout.tv_sec =0;
     timeout.tv_usec =0;
@@ -121,7 +115,6 @@ void put(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
         }
         num_pkts = packet->pkt_num;
         if(strncmp(packet->data_buf,"end",4)==0) {
-            printf("ending put\n");
             break;
         }
         nb= sendto(sockfd, &num_pkts, sizeof(num_pkts),
@@ -171,70 +164,57 @@ int main(int argc, char** argv)
     sockfd = socket(PF_INET, SOCK_DGRAM, 0);
  
     if (sockfd < 0)
-        printf("\nfile descriptor not received!!\n");
+        printf("Socket cannot be created\n");
     else
-        printf("\nfile descriptor %d received\n", sockfd);
+        printf("Socket %d is created\n", sockfd);
  
     // bind()
     if (bind(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == 0)
-        printf("\nSuccessfully binded!\n");
+        printf("Binding Successful\n");
     else
-        printf("\nBinding Failed!\n");
+        printf("Binding Failed!\n");
  
     while (1) {
-        printf("\nWaiting for file name...\n");
- 
-        // receive file name
-        
         memset(data_buf,(int)'\0',PKT_SIZE);
         nBytes = recvfrom(sockfd, data_buf,
                           PKT_SIZE, 0,
                           (struct sockaddr*)&server_addr, &server_addrlen);
-        printf(" rxed data = %s \n ",data_buf);
         char req_buf[3];
         req_buf[0] = data_buf[0];
         switch(atoi(req_buf)) {
             case 0:
 		memset(file_name,0,strlen(file_name));              
 		strcpy(file_name,data_buf +2);
-		printf("file_name=%s\n",file_name); 
 		fp = fopen(file_name, "r");
-		printf("\nFile Name Received: %s\n", file_name);
 		if (fp == NULL) {
 		    printf("\nFile open failed!\n");
                     strncpy(packet.data_buf,"nofile",7);
                     sendto(sockfd, &packet,udp_packet_size,
 		        0, (struct sockaddr*)&server_addr, server_addrlen);
                     break;
-               } 
+                } 
                  
 		else
 		    printf("\nFile Successfully opened!\n");
 		get(fp,&packet,server_addr, sockfd);
-		char end_buf[5];
+		
                 memset(packet.data_buf,0,PKT_SIZE);
 		strncpy(packet.data_buf,"end",3);
                 packet.pkt_num++;        
-	//	do {
-                    sendto(sockfd, &packet,udp_packet_size,
+
+                sendto(sockfd, &packet,udp_packet_size,
 		        0, (struct sockaddr*)&server_addr, server_addrlen);
-          //          memset(packet.data_buf,0,PKT_SIZE);
-//		    recvfrom(sockfd, &packet,udp_packet_size,
-//		        0, (struct sockaddr*)&server_addr, &server_addrlen);
-  //              while(!(strncmp(packet.data_buf,"endok",6)==0))     
-		if(fp != NULL)
-		     fclose(fp);
+                if(fp != NULL)
+		    fclose(fp);
                 break;
             case 1:
                 memset(file_name,0,strlen(file_name));              
 		strcpy(file_name,data_buf +2);
-		printf("file_name=%s\n",file_name); 
 		fp = fopen(file_name, "w");
-		printf("\nFile Name Received: %s\n", file_name);
 		if (fp == NULL)
-		    printf("\nFile open failed!\n");
+		    printf("File open failed!\n");
 		else
-		    printf("\nFile Successfully opened!\n");
+		    printf("File Successfully opened!\n");
 		sendto(sockfd, "rxrdy",6,
 		        0, (struct sockaddr*)&server_addr, server_addrlen);
                 memset(packet.data_buf,0,PKT_SIZE);
@@ -244,10 +224,6 @@ int main(int argc, char** argv)
             case 2:
                 memset(file_name,0,strlen(file_name));              
 		strcpy(file_name,data_buf +2);
-		printf("file_name=%s\n",file_name); 
-	
-		printf("\nFile Name Received: %s\n", file_name);
-		
 		if(remove(file_name) == 0) {
                         printf(" %s is deleted from the server \n",file_name);
                         sendto(sockfd, "deleted",8, 0,
@@ -255,23 +231,21 @@ int main(int argc, char** argv)
 		} else {
                         sendto(sockfd, "failed",8, 0,
                                  (struct sockaddr*)&server_addr, server_addrlen);
-                 }
+                }
                 break;
             case 3:
                 memset(data_buf,0,PKT_SIZE);
                 int total_files = list_all_files();
                 for(int i=0;i < total_files; i++) {
-                    printf("file -%d %s\n ",i+1,file_list[i]);
                     strcat(data_buf,file_list[i]);
                     strcat(data_buf,",");
                 }
-                printf("ls \n  %s \n ",data_buf);
                 sendto(sockfd, data_buf,PKT_SIZE, 0,
                            (struct sockaddr*)&server_addr, server_addrlen);
 		      
                 break; 
             case 4:
-                printf("server exiting .... \n ");
+                printf("Server exiting .... \n ");
                 return 0;
                 break;
           default :
