@@ -152,6 +152,10 @@ int main(int argc, char** argv)
             printf("Error in getting input \n");
             continue;
         }
+         
+
+     
+        
         printf("db=%sxx", data_buf); 
         index =0;
         while(data_buf[index] != ' ' && data_buf[index]!='\n') {
@@ -159,7 +163,13 @@ int main(int argc, char** argv)
             index++;
         }
         com_buf[index] = '\0';
-        
+        int flag =(strncmp(com_buf,"get",4) ==0) || (strncmp(com_buf,"put",4) ==0)
+                       || (strncmp(com_buf,"delete",7) ==0) || (strncmp(com_buf,"ls",3) ==0)
+                       || (strncmp(com_buf,"exit",5) ==0);
+        if(flag !=1) {
+        printf("command  %s is not found\n",data_buf);
+        continue;
+        }
         index++;
         j=0;
         int input = (int)com_buf[0];
