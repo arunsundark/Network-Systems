@@ -6,11 +6,12 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
- 
+#include <sys/time.h>
+#include <time.h> 
 #define IP_PROTOCOL 0
 #define PKT_SIZE 1024
 
-
+struct timeval timeout;
 typedef struct {
 
 int pkt_num;
@@ -30,7 +31,10 @@ void put(FILE *fp,udp_packet_t* packet,struct sockaddr_in server_addr, int sockf
      int file_size = ftell(fp);
      fseek(fp,0,SEEK_SET);
      printf("file_size = %d \n ",file_size);
-     while(file_size > 0) {
+     timeout.tv_sec =1;
+     timeout.tv_usec =0;
+    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
+    while(file_size > 0) {
          memset(packet->data_buf,0,PKT_SIZE);
          fread(packet ->data_buf,1,PKT_SIZE,fp);
          packet->pkt_num++;
@@ -53,13 +57,19 @@ void put(FILE *fp,udp_packet_t* packet,struct sockaddr_in server_addr, int sockf
          printf("file_size = %d \n",file_size);
          num_pkts++;
      }
-
+    timeout.tv_sec =1;
+    timeout.tv_usec =0;
+    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
+    
 }  
 
 int get(udp_packet_t* packet,FILE *fp,struct sockaddr_in server_addr,int sockfd) {
     int addrlen = sizeof(server_addr);  int nb=0;int num_pkts=0;
     int exp_pkt_num=0;
     int udp_packet_size= sizeof(packet->pkt_num) + sizeof(packet->data_buf);
+    timeout.tv_sec =1;
+    timeout.tv_usec =0;
+    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
     while (1) {
 	 
 	memset(packet->data_buf,(int)'\0',PKT_SIZE);
@@ -99,7 +109,10 @@ int get(udp_packet_t* packet,FILE *fp,struct sockaddr_in server_addr,int sockfd)
        // printf("data rxed = %s \n ",packet->data_buf);   
     }
     return 0;
-
+    timeout.tv_sec =1;
+    timeout.tv_usec =0;
+    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
+    
 }
  
  

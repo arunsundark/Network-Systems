@@ -9,7 +9,8 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <errno.h>
-
+#include <sys/time.h>
+#include <time.h>
 
  
 #define IP_PROTOCOL 0
@@ -21,7 +22,7 @@
 struct dirent *home_dirent;   
 char commands[20];
 char file_list [10][10]; 
-
+struct timeval timeout;
 typedef struct {
 
 int pkt_num;
@@ -65,6 +66,9 @@ void get(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
     int file_size = ftell(fp);
     fseek(fp,0,SEEK_SET);
     printf("file_size = %d \n ",file_size);
+    timeout.tv_sec =1;
+    timeout.tv_usec =0;
+    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
     while(file_size > 0) {
         memset(packet->data_buf,0,PKT_SIZE);    
         fread(packet->data_buf,1,PKT_SIZE,fp);
@@ -89,7 +93,10 @@ void get(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
         printf(" perror = %d \n",errno);
                
      }
-     
+    timeout.tv_sec =0;
+    timeout.tv_usec =0;
+    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
+    
          
 }
 
@@ -98,6 +105,9 @@ void put(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
     int nb=0;int num_pkts=0;int exp_pkt_num=0;
     
     int udp_packet_size = sizeof(packet->pkt_num) + sizeof(packet->data_buf);
+    timeout.tv_sec =1;
+    timeout.tv_usec =0;
+    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
     
     while(1) {
 
@@ -133,7 +143,10 @@ void put(FILE *fp,udp_packet_t* packet, struct sockaddr_in server_addr, int sock
         fwrite(packet->data_buf,1,PKT_SIZE,fp);
               
      }
-     
+    timeout.tv_sec =0;
+    timeout.tv_usec =0;
+    setsockopt(sockfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout, sizeof(timeout)); 
+    
          
 }
 
