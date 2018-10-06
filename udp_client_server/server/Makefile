@@ -1,7 +1,7 @@
 
 
-build: server.o
-	gcc server.c -o server.o
+build: uftp_server.c
+	gcc uftp_server.c -o server
 
 clean: 
-	rm -rf server.o
+	rm -rf server
