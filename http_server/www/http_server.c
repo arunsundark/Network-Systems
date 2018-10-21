@@ -5,10 +5,10 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <signal.h>
 
 #define MAXLINE 1024 /*max text line length*/
-#define SERV_PORT  8080/*port*/
+#define SERV_PORT  8081/*port*/
 #define LISTENQ 8 /*maximum number of client connections*/
 
 
@@ -16,7 +16,8 @@ typedef enum {
 	FILE_NOT_FOUND = -2,
 	SERVER_ERROR = -1
 } err_t;
-
+static volatile int keep_running = 1;
+	
 char file_type_db[10][50];
 char err_msg_db[2][512];
 int get_file_size(FILE* fp) {
@@ -29,7 +30,35 @@ char* my_itoa(int num, char* str) {
 	sprintf(str,"%d",num);
 	return str;
 }
-
+int error_handle(err_t e_type, int connfd ) {
+	char err_res[512];
+	char temp_str[32];
+	memset(err_res,0,512);
+//	strcat(err_res,"HTTP/1.1");
+//	strcat(err_res," ");
+		
+	if(e_type == FILE_NOT_FOUND) {
+		strcat(err_res,err_msg_db[0]);
+	}
+	if(e_type == SERVER_ERROR) {
+		strcat(err_res,err_msg_db[1]);
+	}
+	printf("server response =");
+	puts(err_res);     
+	send(connfd, err_res, strlen(err_res), 0);
+	
+	return 0;
+}
+void send_to_client(char* buf,int fs,FILE* fp,int connfd) {
+	int nbytes = 0;
+	while(fs > 0) {
+		memset(buf,0,MAXLINE);
+		nbytes = fread(buf,1,MAXLINE,fp);
+		fs = fs - MAXLINE;
+		printf("fsin loop =%d\n",fs);
+		send(connfd, buf,nbytes,0);
+	}
+}
 int find_file_type(char* s1) {
 
 	if(strstr(s1,".html")) return 0;
@@ -88,118 +117,95 @@ int tcp_connection_init(int* sockfd, struct sockaddr_in* servaddr, int addrlen) 
 	} 
         return 0;
 }
-int error_handle(err_t e_type, int connfd, char* req_param) {
-	char err_res[512];
-	char temp_str[32];
-	memset(err_res,0,512);
-//	strcat(err_res,"HTTP/1.1");
-//	strcat(err_res," ");
-		
-	if(e_type == FILE_NOT_FOUND) {
-		strcat(err_res,err_msg_db[0]);
-	}
-	if(e_type == SERVER_ERROR) {
-		strcat(err_res,err_msg_db[1]);
-	}
-	printf("server response =");
-	puts(err_res);     
-	send(connfd, err_res, strlen(err_res), 0);
-	
-	return 0;
-}
+
 int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* clilen,int connfd)  {
 	//close listening socket
-	int n;
-	char buf[MAXLINE];
-        char req_param[10][256];
-        char default_res[512];
-        char* tok;
+	int n;int i = 0;int fs =0;int ft;FILE* fp;
+	char buf[MAXLINE];char req_param[10][256];char default_res[512];char* tok;
 	
 	n = recv(connfd, buf, MAXLINE,0);
-		printf("%s","String received from client:");
-		puts(buf);
-                tok = strtok(buf,"/");
-		int i = 0;int fs =0;int ft;FILE* fp;
-		printf("\n *******************NEW INCOMING REQUEST*************************\n");
-			
-		while((tok != NULL)  && (i<3 )) {
-			strcpy(req_param[i],tok);
-		 	printf("req_type=%s\n",req_param[i]);
-			tok = strtok(NULL,"-");
-			i++;
-			
+	printf("%s","String received from client:");
+	puts(buf);
+	tok = strtok(buf,"/");
+	printf("\n *******************NEW INCOMING REQUEST*************************\n");
+
+	while((tok != NULL)  && (i<3 )) {
+		strcpy(req_param[i],tok);
+		printf("req_type=%s\n",req_param[i]);
+		tok = strtok(NULL,"-");
+		i++;
+
+	}
+	if(strncmp(req_param[1], " HTTP",5)==0) {
+		memset(default_res,0,512);
+		strcat(default_res,req_param[1]);
+		strcat(default_res," ");
+		strcat(default_res,"200 Document Follows\r\nContent-Type:text/html\r\nContent-Length:");
+		strcat(default_res,"3346\r\n\r\n");
+		printf("server response =");
+		puts(default_res);     
+		send(connfd, default_res, strlen(default_res), 0);
+		fp = fopen("index.html","r");
+		if(fp == NULL) {
+			error_handle(FILE_NOT_FOUND, connfd);
+			return 0; 
 		}
-                if(strncmp(req_param[1], " HTTP",5)==0) {
-			memset(default_res,0,512);
-			strcat(default_res,req_param[1]);
-			strcat(default_res," ");
-			strcat(default_res,"200 Document Follows\r\nContent-Type:text/html\r\nContent-Length:");
-			strcat(default_res,"3346\r\n\r\n");
-			printf("server response =");
-			puts(default_res);     
-			send(connfd, default_res, strlen(default_res), 0);
-			fp = fopen("index.html","r");
-			if(fp == NULL) {
-				error_handle(FILE_NOT_FOUND, connfd, req_param[1]);
-				return 0; 
-			}
-			fs = get_file_size(fp);
-		
-		} else  {
-	        	int j =0;
-	                memset(default_res,0,512);
-			strcat(req_param[1],req_param[2]);
-			printf("req_param[1] =");
-			puts(req_param[1]);
-			printf("\n");
-		        char* temp_tok = strtok(req_param[1]," ");
-			printf("\nfile_name=%s\n",temp_tok); 
-			fp = fopen(temp_tok,"r");
-			if( fp == NULL) {
-				printf("File Not Found\n");
-				error_handle(FILE_NOT_FOUND, connfd, req_param[1]);
-				return 0;
-			}
-			fs = get_file_size(fp);
-			printf("fs=%d\n",fs);	
-			puts(req_param[1]);
-			strcat(default_res,"HTTP/1.1 200 Document Follows\r\nContent-Type:");
-			ft = find_file_type(temp_tok);
-			if(ft < 0) {
-				printf("file type found\n");
-				error_handle(SERVER_ERROR, connfd, req_param[1]);
-				return 0;
-			}
-			else {
-				strcat(default_res,file_type_db[ft]);
-			}
-                        strcat(default_res,"\r\nContent-Length:");
-			char fs_str[20];
-			strcat(default_res,my_itoa(fs,fs_str));
-			strcat(default_res,"\r\n\r\n");
-			
-			send(connfd, default_res, strlen(default_res), 0);
-			printf("\n SERVER RESPONSE\n");
-			puts(default_res);
-		} 		
-		memset(buf,0,MAXLINE);
-		int nbytes = 0;
-		while(fs > 0) {
-			memset(buf,0,MAXLINE);
-			nbytes = fread(buf,1,MAXLINE,fp);
-			fs = fs - MAXLINE;
-			printf("fsin loop =%d\n",fs);
-			send(connfd, buf,nbytes,0);
-		}	
-	printf("not in while \n"); 		
+		fs = get_file_size(fp);
+
+	} else  {
+		int j =0;
+		memset(default_res,0,512);
+		strcat(req_param[1],req_param[2]);
+		printf("req_param[1] =");
+		puts(req_param[1]);
+		printf("\n");
+		char* temp_tok = strtok(req_param[1]," ");
+		printf("\nfile_name=%s\n",temp_tok); 
+		fp = fopen(temp_tok,"r");
+		if( fp == NULL) {
+			printf("File Not Found\n");
+			error_handle(FILE_NOT_FOUND, connfd);
+			return 0;
+		}
+		fs = get_file_size(fp);
+		printf("fs=%d\n",fs);	
+		puts(req_param[1]);
+		strcat(default_res,"HTTP/1.1 200 Document Follows\r\nContent-Type:");
+		ft = find_file_type(temp_tok);
+		if(ft < 0) {
+			printf("file type found\n");
+			error_handle(SERVER_ERROR, connfd);
+			return 0;
+		}
+		else {
+			strcat(default_res,file_type_db[ft]);
+		}
+		strcat(default_res,"\r\nContent-Length:");
+		char fs_str[20];
+		strcat(default_res,my_itoa(fs,fs_str));
+		strcat(default_res,"\r\n\r\n");
+
+		send(connfd, default_res, strlen(default_res), 0);
+		printf("\n SERVER RESPONSE\n");
+		puts(default_res);
+	} 		
+	send_to_client(buf,fs,fp,connfd);
 	fclose(fp);
 	memset(buf,0,MAXLINE); 
 	printf("\n*************************REQUEST COMPLETED*******************************\n");	
 	return 0;
 }
+void intHandler(int dummy) {
+	keep_running = 0;
+	fflush(stdout);
+	printf("Server Exiting\n");
+	exit(0);	
+}
+
 int process_tcp_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* clilen)  {
 	int connfd;
 	int n =0;
+	signal(SIGINT, intHandler);
 	while(1) {	
 		pid_t childpid;
 
@@ -214,8 +220,10 @@ int process_tcp_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen
 				exit(0);
 			}
 			n++;
-		}close(connfd);
-
+		}
+	
+		close(connfd);
+		
 		printf("\n*************************SERVICED********************************\n");
 	}
 
