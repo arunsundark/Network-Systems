@@ -5,3 +5,4 @@ build: http_server.o
 
 clean: 
 	rm -rf server
+	rm -rf *.o
