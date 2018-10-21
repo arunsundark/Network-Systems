@@ -17,7 +17,7 @@ typedef enum {
 	SERVER_ERROR = -1
 } err_t;
 static volatile int keep_running = 1;
-	
+char proto_ver_db[2][20];	
 char file_type_db[10][50];
 char err_msg_db[2][512];
 int get_file_size(FILE* fp) {
@@ -34,9 +34,6 @@ int error_handle(err_t e_type, int connfd ) {
 	char err_res[512];
 	char temp_str[32];
 	memset(err_res,0,512);
-//	strcat(err_res,"HTTP/1.1");
-//	strcat(err_res," ");
-		
 	if(e_type == FILE_NOT_FOUND) {
 		strcat(err_res,err_msg_db[0]);
 	}
@@ -55,7 +52,7 @@ void send_to_client(char* buf,int fs,FILE* fp,int connfd) {
 		memset(buf,0,MAXLINE);
 		nbytes = fread(buf,1,MAXLINE,fp);
 		fs = fs - MAXLINE;
-		printf("fsin loop =%d\n",fs);
+	//	printf("fsin loop =%d\n",fs);
 		send(connfd, buf,nbytes,0);
 	}
 }
@@ -83,6 +80,10 @@ void fill_file_type_db() {
 void fill_err_msg_db(){
 	strcat(err_msg_db[0],"404 File Not Found");
 	strcat(err_msg_db[1] ,"500 Internal Server Error");
+}
+void fill_proto_ver_db() {
+	strcat(proto_ver_db[0], "HTTP/1.0 ");
+	strcat(proto_ver_db[1], "HTTP/1.1 ");
 }
 
 int tcp_connection_init(int* sockfd, struct sockaddr_in* servaddr, int addrlen) {
@@ -117,7 +118,14 @@ int tcp_connection_init(int* sockfd, struct sockaddr_in* servaddr, int addrlen) 
 	} 
         return 0;
 }
-
+int check_command(char* req_param) {
+	if(strncmp(req_param,"GET",3) == 0) return 1;
+	else return -1;
+}
+int check_protocol_version(char* req_param) {
+	if(strstr(req_param,"/1.1")) return 1;
+	if(strstr(req_param,"/1.0")) return 0;
+}		
 int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* clilen,int connfd)  {
 	//close listening socket
 	int n;int i = 0;int fs =0;int ft;FILE* fp;
@@ -125,16 +133,28 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	
 	n = recv(connfd, buf, MAXLINE,0);
 	printf("%s","String received from client:");
-	puts(buf);
+	//puts(buf);
 	tok = strtok(buf,"/");
 	printf("\n *******************NEW INCOMING REQUEST*************************\n");
-
+	
 	while((tok != NULL)  && (i<3 )) {
 		strcpy(req_param[i],tok);
-		printf("req_type=%s\n",req_param[i]);
+	//	printf("req_type=%s\n",req_param[i]);
 		tok = strtok(NULL,"-");
 		i++;
 
+	}
+	int proto_ver = check_protocol_version(buf);
+	if(proto_ver <  0) {
+		printf("Bad command\n, closing connection");
+		error_handle(SERVER_ERROR,connfd);
+		return 0;
+	} else printf("\n ret val from proto check is %d\n",proto_ver);
+		
+	if(check_command(req_param[0]) < 0) {
+		printf("Bad command\n, closing connection");
+		error_handle(SERVER_ERROR,connfd);
+		return 0;
 	}
 	if(strncmp(req_param[1], " HTTP",5)==0) {
 		memset(default_res,0,512);
@@ -170,7 +190,8 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 		fs = get_file_size(fp);
 		printf("fs=%d\n",fs);	
 		puts(req_param[1]);
-		strcat(default_res,"HTTP/1.1 200 Document Follows\r\nContent-Type:");
+		strcat(default_res,proto_ver_db[proto_ver]);
+		strcat(default_res,"200 Document Follows\r\nContent-Type:");
 		ft = find_file_type(temp_tok);
 		if(ft < 0) {
 			printf("file type found\n");
@@ -236,6 +257,7 @@ int main (int argc, char **argv)  {
         int addrlen = 0;
  	fill_file_type_db();       
 	fill_err_msg_db();
+	fill_proto_ver_db();
         tcp_connection_init( &sockfd, &servaddr, sizeof(servaddr));   
         pid_t childpid;
 	printf("%s\n","Server running...waiting for connections.");
