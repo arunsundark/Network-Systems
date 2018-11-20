@@ -18,7 +18,6 @@
 #define LISTENQ 8 /*maximum number of client connections*/
 
 
-char root_path[512];
 typedef enum {
 	FILE_NOT_FOUND = -2,
 	SERVER_ERROR = -1
@@ -155,6 +154,11 @@ int check_protocol_version(char* req_param) {
 	else return -1;
 }		
 
+int check_file_present_in_cache(char* path_name) {
+	if(access(path_name, F_OK) !=-1) return 1;
+	else return -1;
+}
+
 
 //process client request
 int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* clilen,int connfd)  {
@@ -162,7 +166,8 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	int i = 0;//int fs =0;int ft;
 	FILE* fp;
 	char buf[MAXLINE];char req_param[10][256];unsigned char md5sum[512];char* tok;
-	char message[MAXLINE];
+	char root_path[512];
+        char message[MAXLINE];
 	char client_message[MAXLINE];
 	struct sockaddr_in main_server;int host_sockfd;
 	int n = recv(connfd, buf, MAXLINE,0);
@@ -205,54 +210,62 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	
 	printf("md5sum = %s\n",buf);
 	strncat(buf,".html",5);
-	fp = fopen(buf,"a");	 
-	printf("\n hostname==%s\n strlen(host)=%d",req_param[3],strlen(req_param[3]));
-	struct hostent* host_entry;
-	i = 7;
-	while(req_param[1][i]!='/') {
-		message[i-7] = req_param[1][i];
-		i++;
-	} 
-	printf("\n hostname2==%s\n",message);
-	
-	host_entry = gethostbyname(message);
-	(&main_server)->sin_family = AF_INET;
-	memcpy(&(main_server.sin_addr),host_entry->h_addr,host_entry->h_length);
-	(&main_server)->sin_port = htons(80);
-	if ((host_sockfd = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
-		printf("Socket Creation Error\n");
-		exit(2);
-	}
-	int tval = 1;
-        if(setsockopt(host_sockfd,SOL_SOCKET, SO_REUSEADDR,&tval,sizeof(int)) < 0) {
-		printf("sectsock error \n");
-		exit(2);
-	}
-	if(connect(host_sockfd,(struct sockaddr*)&main_server,sizeof(main_server)) < 0) {
-		printf("connection error \n");
-		exit(2);
-	}memset(message,0,MAXLINE);
-	sprintf(message,"GET %s\r\nHost: %s\r\nConnection: close\r\n\r\n",req_param[3],req_param[2]);
-	printf("message to host %s\n",message);
-	printf("client message to host %s\n",client_message);
-	printf("host addr =%s\n",host_entry->h_addr);
-	n = send(host_sockfd,client_message,sizeof(client_message),0);
-	if ( n < 0) printf("error in sending\n");
+	strcpy(root_path,"cache/");
+	strncat(root_path,buf,strlen(buf));
+	if(check_file_present_in_cache(root_path) > 0) {
+		printf("\nCACHE HIT\n");
+		fp = fopen(root_path,"r");	
+		memset(buf,0,MAXLINE); 
+		send_to_client(buf,get_file_size(fp), fp, connfd);
+		fclose(fp);
+	}	
 	else {
-		printf("getting message from server\n");
-		do {
-			memset(message,0,MAXLINE);
-			n = recv(host_sockfd,message,sizeof(message),0);
-			if(n > 0) {
-				send(connfd,message,n,0);
-				printf("...sending\n");
-				fwrite(message,1,n,fp);
-			}
-		} while(n > 0);
-	}
-	fclose(fp);
-	close(host_sockfd);
-		
+		fp = fopen(root_path,"a");	 
+		struct hostent* host_entry;
+		i = 7;
+		while(req_param[1][i]!='/') {
+			message[i-7] = req_param[1][i];
+			i++;
+		} 
+		printf("\n hostname2==%s\n",message);
+	
+		host_entry = gethostbyname(message);
+		(&main_server)->sin_family = AF_INET;
+		memcpy(&(main_server.sin_addr),host_entry->h_addr,host_entry->h_length);
+		(&main_server)->sin_port = htons(80);
+		if ((host_sockfd = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
+			printf("Socket Creation Error\n");
+			exit(2);
+		}
+		int tval = 1;
+        	if(setsockopt(host_sockfd,SOL_SOCKET, SO_REUSEADDR,&tval,sizeof(int)) < 0) {
+			printf("sectsock error \n");
+			exit(2);
+		}
+		if(connect(host_sockfd,(struct sockaddr*)&main_server,sizeof(main_server)) < 0) {
+			printf("connection error \n");
+			exit(2);
+		}
+		memset(message,0,MAXLINE);
+		printf("client message to host %s\n",client_message);
+		n = send(host_sockfd,client_message,sizeof(client_message),0);
+		if ( n < 0) printf("error in sending\n");
+		else {
+			printf("getting message from server\n");
+			do {
+				memset(message,0,MAXLINE);
+				n = recv(host_sockfd,message,sizeof(message),0);
+				if(n > 0) {
+					send(connfd,message,n,0);
+					printf("...sending\n");
+					fwrite(message,1,n,fp);
+				}
+			} while(n > 0);
+		}
+		fclose(fp);
+		close(host_sockfd);
+	}	
+	
 
 	printf("\n*************************REQUEST COMPLETED*******************************\n");	
 	return 0;
