@@ -163,11 +163,11 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	FILE* fp;
 	char buf[MAXLINE];char req_param[10][256];unsigned char md5sum[512];char* tok;
 	char message[MAXLINE];
-	
+	char client_message[MAXLINE];
 	struct sockaddr_in main_server;int host_sockfd;
 	int n = recv(connfd, buf, MAXLINE,0);
 	printf("%s","String received from client:");
-	fputs(buf,stdout);
+	fputs(buf,stdout); strncpy(client_message,buf,strlen(buf));
 	tok = strtok(buf," ");
 	printf("\n *******************NEW INCOMING REQUEST*************************\n");
 	
@@ -234,8 +234,9 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	}memset(message,0,MAXLINE);
 	sprintf(message,"GET %s\r\nHost: %s\r\nConnection: close\r\n\r\n",req_param[3],req_param[2]);
 	printf("message to host %s\n",message);
+	printf("client message to host %s\n",client_message);
 	printf("host addr =%s\n",host_entry->h_addr);
-	n = send(host_sockfd,message,sizeof(message),0);
+	n = send(host_sockfd,client_message,sizeof(client_message),0);
 	if ( n < 0) printf("error in sending\n");
 	else {
 		printf("getting message from server\n");
@@ -244,6 +245,7 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 			n = recv(host_sockfd,message,sizeof(message),0);
 			if(n > 0) {
 				send(connfd,message,n,0);
+				printf("...sending\n");
 				fwrite(message,1,n,fp);
 			}
 		} while(n > 0);
