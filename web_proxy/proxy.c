@@ -6,18 +6,19 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
 #include <netdb.h>
 #include <openssl/md5.h>
-
+#include <time.h>
 #define MAXLINE 1024 /*max text line length*/
 #define SERV_PORT  8082/*port*/
 #define LISTENQ 8 /*maximum number of client connections*/
 
-
+int cache_timeout;
 typedef enum {
 	FILE_NOT_FOUND = -2,
 	SERVER_ERROR = -1
@@ -26,12 +27,14 @@ static volatile int keep_running = 1;
 char proto_ver_db[2][20];	
 
 char err_msg_db[2][512];
+
 int get_file_size(FILE* fp) {
 	fseek(fp,0,SEEK_END);
 	int file_size = ftell(fp);
 	fseek(fp,0,SEEK_SET);
 	return file_size;
 }
+
 char* my_itoa(int num, char* str) {
 	sprintf(str,"%d",num);
 	return str;
@@ -207,19 +210,30 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	memset(message,0,MAXLINE);
 	for (i =0; i < MD5_DIGEST_LENGTH;i++) 
 		sprintf(&buf[2*i],"%02x",md5sum[i]);
-	
+	int timeout_flag = 0;
 	printf("md5sum = %s\n",buf);
 	strncat(buf,".html",5);
 	strcpy(root_path,"cache/");
 	strncat(root_path,buf,strlen(buf));
 	if(check_file_present_in_cache(root_path) > 0) {
 		printf("\nCACHE HIT\n");
-		fp = fopen(root_path,"r");	
-		memset(buf,0,MAXLINE); 
-		send_to_client(buf,get_file_size(fp), fp, connfd);
-		fclose(fp);
+		struct stat cached_file;
+		time_t curr_time;
+		stat(root_path,&cached_file);
+		time(&curr_time);
+		int time_diff = (int)difftime(curr_time,cached_file.st_mtime);
+		printf("Last creation time of file is%d\n ",time_diff);
+		if(time_diff <= cache_timeout) {
+			fp = fopen(root_path,"r");	
+			memset(buf,0,MAXLINE); 
+			send_to_client(buf,get_file_size(fp), fp, connfd);
+			fclose(fp);
+			timeout_flag = 0;
+		} else {
+			timeout_flag = 1;
+		}
 	}	
-	else {
+	if(timeout_flag == 1) {
 		fp = fopen(root_path,"a");	 
 		struct hostent* host_entry;
 		i = 7;
@@ -264,6 +278,7 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 		}
 		fclose(fp);
 		close(host_sockfd);
+
 	}	
 	
 
@@ -309,6 +324,7 @@ int main (int argc, char **argv)  {
 	struct sockaddr_in cliaddr, servaddr;
 	memset(&servaddr,0,sizeof(servaddr));
         int addrlen = 0;
+	cache_timeout = atoi(argv[1]);
 	fill_err_msg_db();
 	fill_proto_ver_db();
         tcp_connection_init( &sockfd, &servaddr, sizeof(servaddr));   
