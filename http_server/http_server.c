@@ -161,7 +161,7 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	
 	n = recv(connfd, buf, MAXLINE,0);
 	printf("%s","String received from client:");
-	//puts(buf);
+	fputs(buf,stdout);
 	tok = strtok(buf,"/");
 	printf("\n *******************NEW INCOMING REQUEST*************************\n");
 	
