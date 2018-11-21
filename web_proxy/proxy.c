@@ -20,7 +20,7 @@
 
 int cache_timeout;
 typedef enum {
-	FILE_NOT_FOUND = -2,
+	FORBIDDEN_WEBSITE = -2,
 	SERVER_ERROR = -1
 } err_t;
 static volatile int keep_running = 1;
@@ -44,7 +44,7 @@ char* my_itoa(int num, char* str) {
 int error_handle(err_t e_type, int connfd ) {
 	char err_res[512];
 	memset(err_res,0,512);
-	if(e_type == FILE_NOT_FOUND) {
+	if(e_type == FORBIDDEN_WEBSITE) {
 		strcat(err_res,err_msg_db[0]);
 	}
 	if(e_type == SERVER_ERROR) {
@@ -98,8 +98,8 @@ void send_to_client(char* buf,int fs,FILE* fp,int connfd) {
 
 //populates error message database
 void fill_err_msg_db(){
-	strcat(err_msg_db[0],"404 File Not Found");
-	strcat(err_msg_db[1] ,"500 Internal Server Error");
+	strcat(err_msg_db[0],"<html><body><H1> Error 400 Bad Request: Invalid request</H1></body></html>");
+	strcat(err_msg_db[1] ,"<html><body><H1> Error 403 Access Forbidden</H1></body></html>");
 }
 
 //populates the protocol version database
@@ -162,6 +162,45 @@ int check_file_present_in_cache(char* path_name) {
 	else return -1;
 }
 
+int check_blocked_website(char* url) {
+	FILE* bl = fopen("blockedlist.txt","r");
+	int fs = get_file_size(bl);
+/*	char* block_buf = (char*) malloc(100);
+	memset(block_buf,0,100);
+	int n = 0; char ch;
+	while(fs > 0) {
+		ch = getc(bl);
+		while(ch !='\n' || ch !='\r' || ch != EOF) {
+			block_buf[n] = ch;
+			n++;
+			ch = fgetc(bl);
+		}
+		fs = fs - n;
+		n++;
+		block_buf[n]='\0';
+		printf("block_buf =%s\n",block_buf);
+		if(strncmp(url,block_buf,n-1)==0){
+			return 1;
+		}
+		memset(block_buf,0,n); 
+	}
+	free(block_buf);
+	return -1;
+*/
+	char* line = NULL;
+	size_t len=0; ssize_t rd;
+	while(( rd = getline(&line,&len, bl)) != -1) {
+		if(strncmp(url,line,strlen(url))==0){
+			fclose(bl);
+			printf("blocked.txt in strncmp=%s\n",line);
+			return -1;
+		}printf("blocke.txt=%s\n",line);
+			
+	}
+	fclose(bl);
+	return 1;
+}
+		
 
 //process client request
 int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* clilen,int connfd)  {
@@ -199,9 +238,21 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	} 
 	if(check_command(req_param[0]) < 0) {
 		printf("Bad command\n, closing connection");
-		error_handle(SERVER_ERROR,connfd);
+		error_handle(FORBIDDEN_WEBSITE,connfd);
 		return 0;
-	} 
+	}
+	i = 7;
+	memset(message,0,MAXLINE);
+	while(req_param[1][i]!='/') {
+		message[i-7] = req_param[1][i];
+		i++;
+	}printf("blocked url =%s\n",message);
+	
+	if(check_blocked_website(message) < 0) {
+		printf("Bad website \n, closing connection");
+		error_handle(FORBIDDEN_WEBSITE,connfd);
+		return 0;
+	}
 	MD5_CTX url_md5;
 	MD5_Init(&url_md5);
 	MD5_Update(&url_md5, req_param[1], strlen(req_param[1]));
@@ -210,7 +261,7 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	memset(message,0,MAXLINE);
 	for (i =0; i < MD5_DIGEST_LENGTH;i++) 
 		sprintf(&buf[2*i],"%02x",md5sum[i]);
-	int timeout_flag = 0;
+	int timeout_flag = 1;
 	printf("md5sum = %s\n",buf);
 	strncat(buf,".html",5);
 	strcpy(root_path,"cache/");
