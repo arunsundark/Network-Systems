@@ -57,34 +57,6 @@ int error_handle(err_t e_type, int connfd ) {
 	return 0;
 }
 
-char* calculate_md5sum_for_url(char* buf) {
-	int n;
-	MD5_CTX c;
-	char* md5result = (char*) malloc(33);
-	ssize_t bytes = strlen(buf);
-	unsigned char digest[16];
-	MD5_Init(&c);
-	while(bytes > 0) {
-		if(bytes > 512) {
-			MD5_Update(&c, buf, 512);
-			} else {
-				MD5_Update(&c, buf,bytes);
-		}
-		bytes = bytes - 512;
-		buf = buf + 512;
-	}
-	MD5_Final(digest, &c);
-	for (n =0;n < 16; ++n) {
-		snprintf(&(md5result[n*2]), 16*2,"%02x", (unsigned int)digest[n]);
-	}
-	return md5result;
-}
-
-	
-
-
-
-
 //FUnction to send data from server to client
 void send_to_client(char* buf,int fs,FILE* fp,int connfd) {
 	int nbytes = 0;
@@ -165,28 +137,7 @@ int check_file_present_in_cache(char* path_name) {
 int check_blocked_website(char* url) {
 	FILE* bl = fopen("blockedlist.txt","r");
 	int fs = get_file_size(bl);
-/*	char* block_buf = (char*) malloc(100);
-	memset(block_buf,0,100);
-	int n = 0; char ch;
-	while(fs > 0) {
-		ch = getc(bl);
-		while(ch !='\n' || ch !='\r' || ch != EOF) {
-			block_buf[n] = ch;
-			n++;
-			ch = fgetc(bl);
-		}
-		fs = fs - n;
-		n++;
-		block_buf[n]='\0';
-		printf("block_buf =%s\n",block_buf);
-		if(strncmp(url,block_buf,n-1)==0){
-			return 1;
-		}
-		memset(block_buf,0,n); 
-	}
-	free(block_buf);
-	return -1;
-*/
+
 	char* line = NULL;
 	size_t len=0; ssize_t rd;
 	while(( rd = getline(&line,&len, bl)) != -1) {
@@ -208,7 +159,7 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	int i = 0;//int fs =0;int ft;
 	FILE* fp;
 	char buf[MAXLINE];char req_param[10][256];unsigned char md5sum[512];char* tok;
-	char root_path[512];
+	char root_path[512]; char ip_cache_path[512];
         char message[MAXLINE];
 	char client_message[MAXLINE];
 	struct sockaddr_in main_server;int host_sockfd;
@@ -261,11 +212,14 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	memset(message,0,MAXLINE);
 	for (i =0; i < MD5_DIGEST_LENGTH;i++) 
 		sprintf(&buf[2*i],"%02x",md5sum[i]);
-	int timeout_flag = 1;
+	int timeout_flag = 1;int ip_cache_flag = 0;
 	printf("md5sum = %s\n",buf);
 	strncat(buf,".html",5);
 	strcpy(root_path,"cache/");
 	strncat(root_path,buf,strlen(buf));
+	strcpy(ip_cache_path,"ip-cache/");
+	strncat(ip_cache_path,buf,strlen(buf));
+
 	if(check_file_present_in_cache(root_path) > 0) {
 		printf("\nCACHE HIT\n");
 		struct stat cached_file;
@@ -279,13 +233,24 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 			memset(buf,0,MAXLINE); 
 			send_to_client(buf,get_file_size(fp), fp, connfd);
 			fclose(fp);
+			printf("enters timeout = 0\n");
 			timeout_flag = 0;
 		} else {
 			timeout_flag = 1;
+			printf("enters timeout = 1\n");
 		}
 	}	
 	if(timeout_flag == 1) {
 		fp = fopen(root_path,"a");	 
+		if(check_file_present_in_cache(ip_cache_path) > 0) {
+			FILE* f_ip = fopen(ip_cache_path,"r");
+			int ip_fs = get_file_size(f_ip);
+			memset(buf,0,MAXLINE);
+			fread(buf,1,ip_fs,f_ip);
+			ip_cache_flag = 1;
+			fclose(f_ip);
+			printf("ip cache present \n");
+		}
 		struct hostent* host_entry;
 		i = 7;
 		while(req_param[1][i]!='/') {
@@ -293,10 +258,23 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 			i++;
 		} 
 		printf("\n hostname2==%s\n",message);
-	
-		host_entry = gethostbyname(message);
+		if(ip_cache_flag ==1) {
+			memcpy((char*)&(main_server.sin_addr),buf,strlen(buf));
+			printf("ip_cache =1\n");
+		}
+		if(ip_cache_flag == 0) {
+			host_entry = gethostbyname(message);
+			memcpy(&(main_server.sin_addr),host_entry->h_addr,host_entry->h_length);
+			memset(buf,0,MAXLINE);
+			memcpy(buf,host_entry->h_addr,strlen((char*)host_entry->h_addr));
+			FILE* f_i = fopen(ip_cache_path,"a");
+			//int ip_s = get_file_size(f_i);
+			//memset(buf,0,MAXLINE);
+			fwrite(buf,1,strlen(buf),f_i);
+			fclose(f_i);
+			printf("ip _cache =0\n");
+		}
 		(&main_server)->sin_family = AF_INET;
-		memcpy(&(main_server.sin_addr),host_entry->h_addr,host_entry->h_length);
 		(&main_server)->sin_port = htons(80);
 		if ((host_sockfd = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
 			printf("Socket Creation Error\n");
