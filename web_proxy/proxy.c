@@ -1,6 +1,6 @@
 /**
 @author: Arunsundar Kannan
-@file : HTTP WEBSERVER
+@file : HTTP PROXY WEBSERVER
 */
 #include <stdlib.h>
 #include <stdio.h>
@@ -45,10 +45,10 @@ int error_handle(err_t e_type, int connfd ) {
 	char err_res[512];
 	memset(err_res,0,512);
 	if(e_type == FORBIDDEN_WEBSITE) {
-		strcat(err_res,err_msg_db[0]);
+		strcat(err_res,err_msg_db[1]);
 	}
 	if(e_type == SERVER_ERROR) {
-		strcat(err_res,err_msg_db[1]);
+		strcat(err_res,err_msg_db[0]);
 	}
 	printf("server response =");
 	puts(err_res);     
@@ -70,8 +70,8 @@ void send_to_client(char* buf,int fs,FILE* fp,int connfd) {
 
 //populates error message database
 void fill_err_msg_db(){
-	strcat(err_msg_db[0],"<html><body><H1> Error 400 Bad Request: Invalid request</H1></body></html>");
-	strcat(err_msg_db[1] ,"<html><body><H1> Error 403 Access Forbidden</H1></body></html>");
+	strcat(err_msg_db[0],"<html><body> Error 400 Bad Request</body></html>");
+	strcat(err_msg_db[1] ,"<html><body> Error 403 Access Forbidden</body></html>");
 }
 
 //populates the protocol version database
@@ -128,12 +128,12 @@ int check_protocol_version(char* req_param) {
 	else if(strstr(req_param,"/1.0")) return 0;
 	else return -1;
 }		
-
+//checks if file is present in the path
 int check_file_present_in_cache(char* path_name) {
 	if(access(path_name, F_OK) !=-1) return 1;
 	else return -1;
 }
-
+//Checks if a url is blocked
 int check_blocked_website(char* url) {
 	FILE* bl = fopen("blockedlist.txt","r");
 	int fs = get_file_size(bl);
@@ -268,8 +268,6 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 			memset(buf,0,MAXLINE);
 			memcpy(buf,host_entry->h_addr,strlen((char*)host_entry->h_addr));
 			FILE* f_i = fopen(ip_cache_path,"a");
-			//int ip_s = get_file_size(f_i);
-			//memset(buf,0,MAXLINE);
 			fwrite(buf,1,strlen(buf),f_i);
 			fclose(f_i);
 			printf("ip _cache =0\n");
