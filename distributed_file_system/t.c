@@ -12,15 +12,24 @@
 
 int main() {
 
-	unsigned char digest[16];
-	const char* string = "Hello World";
-	struct MD5_CTX context;
-	MD5Init(&context);
-	MD5Update(&context, string, strlen(string));
-	MD5Final(digest, &context);
-	char md5string[33];
-	for(int i = 0; i < 16; ++i)
-	    sprintf(&md5string[i*2], "%02x", (unsigned int)digest[i]);
-	printf("output =%s\n",md5string);	
-	return 0;
+    int n;
+    MD5_CTX c;
+    char buf[512];
+    ssize_t bytes;
+    unsigned char out[MD5_DIGEST_LENGTH];
+    FILE* fp = fopen("server.c","r");
+    MD5_Init(&c);
+    bytes=fread(buf,1,512,fp);
+    while(bytes > 0)
+    {
+        MD5_Update(&c, buf, bytes);
+        bytes=fread(buf,1,512,fp);
+    }
+
+    MD5_Final(out, &c);
+    fclose(fp);
+    for(n=0; n<MD5_DIGEST_LENGTH; n++)
+        printf("%02x", out[n]);
+    printf("\n");
+    return 0;
 }

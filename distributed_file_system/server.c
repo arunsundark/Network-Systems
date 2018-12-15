@@ -84,9 +84,9 @@ int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* c
 	int n;
 	char buf[MAXLINE];
 //	while(1) {
-			
+		memset(buf, 0, MAXLINE);
 		n = recv(connfd, buf, MAXLINE,0);
-		printf("%s\n",buf);
+		printf("%s*\n",buf);
 		memset(buf, 0, MAXLINE);
 		strcpy(buf, "hello client dfc");
 		n = send(connfd, buf, strlen(buf),0);

@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <time.h> 
 #include <openssl/md5.h>
+#include <errno.h>
 #define IP_PROTOCOL 0
 #define PKT_SIZE 1024
 #define MAX_SERVERS 1
@@ -22,6 +23,8 @@ char password[25];
 char dfs_ip[MAX_SERVERS][25];
 char dfs_port[MAX_SERVERS][10];
 int dfs_active[MAX_SERVERS];
+
+
 void get_configuration() {
 	FILE* fp = fopen("dfc.conf","r");
 	char * line = NULL;
@@ -86,6 +89,7 @@ int tcp_connection_init() {
     		// connect the client socket to server socket 
     		if (connect(sockfd[i], (SA*)&dfs_addr[i], sizeof(dfs_addr[i])) != 0) { 
         		printf("connection with the Server %d failed...\n",i);
+			printf("Error is:%s\n",strerror(errno));
 			dfs_active[i] = 0; 
         		return 0; 
     		} else {
@@ -94,23 +98,76 @@ int tcp_connection_init() {
 		}
 	}
 }
+void calculate_md5sum(char* filename, unsigned char* out) {
+	int n;
+	MD5_CTX c;
+	char buf[512];
+	ssize_t bytes;
+	
+	FILE* fp = fopen(filename,"r");
+	MD5_Init(&c);
+	bytes=fread(buf,1,512,fp);
+	while(bytes > 0)
+	{
+		MD5_Update(&c, buf, bytes);
+		bytes=fread(buf,1,512,fp);
+	}
+	MD5_Final(out, &c);
+	fclose(fp);
+	for(n=0; n<MD5_DIGEST_LENGTH; n++)
+		printf("%02x", out[n]);
+	printf("\n");
+}	
 int get(char* filename) {
-	
-	char md5sum[MD5_DIGEST_LENGTH];
-	char buf[500];
-	MD5_CTX url_md5;
-	MD5_Init(&url_md5);
-	MD5_Update(&url_md5, filename, strlen(filename));
-	MD5_Final(md5sum, &url_md5);
-	memset(buf,0,500);
-	for (i =0; i < MD5_DIGEST_LENGTH;i++) 
-		sprintf(&buf[2*i],"%02x",md5sum[i]);
-	
+	char* msg_type = "GET";
+	char* comma = ",";
+	char* msg_header = (char*) malloc(1024);
+	char* buf = (char*) malloc(1024);
+	memset(msg_header,0,1024);
+	strncpy(msg_header,msg_type,strlen(msg_type));
+	strncat(msg_header,comma,1);	
+	strncat(msg_header,username,strlen(username));	
+	strncat(msg_header,comma,1);	
+	strncat(msg_header,password,strlen(password));	
+	strncat(msg_header,comma,1);	
+	strncat(msg_header,filename,strlen(filename));	
+	send(sockfd[0],msg_header,strlen(msg_header),0);
+	memset(msg_header,0,1024);
+	memset(buf,0,1024);
+	recv(sockfd[0], buf, 100,0);
+	return 0;
+}       
+int put(char* filename) {
+	char* msg_type = "PUT";
+	char* comma = ",";
+	char* msg_header = (char*) malloc(1024);
+	char* buf = (char*) malloc(1024);
+	unsigned char md5sum[MD5_DIGEST_LENGTH];
+	FILE* fp; 
+	char filepath[512]; 
+	memset(msg_header,0,1024);
+	strncpy(msg_header,msg_type,strlen(msg_type));
+	strncat(msg_header,comma,1);	
+	strncat(msg_header,username,strlen(username));	
+	strncat(msg_header,comma,1);	
+	strncat(msg_header,password,strlen(password));	
+	strncat(msg_header,comma,1);	
+	strncat(msg_header,filename,strlen(filename));	
+	calculate_md5sum(filename,md5sum);
+	strcpy(filepath,"md5_database/");
+	strncat(filepath,md5sum,strlen(md5sum));
+	strncat(filepath,".txt",4);
+	fp = fopen("filepath","w");
+	fwrite(filename,1,strlen(filename),fp);
+	fclose(fp);
+	send(sockfd[0],msg_header,strlen(msg_header),0);
+	memset(msg_header,0,1024);
+	memset(buf,0,1024);
+	recv(sockfd[0], buf, 100,0);
+	return 0;
 
 
-
-
-}        
+}
 int main(int argc, char** argv)
 {	char user_input[100];
 	get_configuration();
@@ -129,10 +186,12 @@ int main(int argc, char** argv)
 				input_type = 1;
 				strcpy(filename,strtok(NULL,"\n"));
 				printf("filename *%s*\n",filename);
+				get(filename);
 			} else if(strncmp("put",tok,3)==0) {
 				input_type = 2;
 				strcpy(filename,strtok(NULL,"\n"));
 				printf("filename *%s*\n",filename);
+				put(filename);
 
 			} else if(strncmp("ls",tok,2)==0) {
 				input_type = 3;
@@ -142,13 +201,5 @@ int main(int argc, char** argv)
 			}
 		}
 	}
-
-	char buf[100];
-		
-	strcpy(buf,"hello dfs server");
-   	send(sockfd[0],buf,strlen(buf),0);
-	memset(buf,0,100);
-	recv(sockfd[0], buf, 100,0);
-	printf("%s\n",buf); 
 	return 0;
 }
