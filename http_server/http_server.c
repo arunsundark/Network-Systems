@@ -116,13 +116,16 @@ int tcp_connection_init(int* sockfd, struct sockaddr_in* servaddr, int addrlen) 
 		printf("Socket Creation Error\n");
 		exit(2);
 	}
-
+	int tval = 1;
         //preparation of the socket address
 
 	servaddr->sin_family = AF_INET;
 	servaddr->sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr->sin_port = htons(SERV_PORT);
-
+	if(setsockopt(*sockfd,SOL_SOCKET, SO_REUSEADDR,&tval,sizeof(int)) < 0) {
+		printf("sectsock error \n");
+		exit(2);
+	}
 	//bind the socket
 	if(bind (*sockfd, (struct sockaddr *) servaddr, addrlen) < 0) {
 		printf("Binding Error \n");
