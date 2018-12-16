@@ -23,6 +23,70 @@ char password[25];
 char dfs_ip[MAX_SERVERS][25];
 char dfs_port[MAX_SERVERS][10];
 int dfs_active[MAX_SERVERS];
+int pattern_0[4][2];
+int pattern_1[4][2];
+int pattern_2[4][2];
+int pattern_3[4][2];
+
+
+
+
+char* my_itoa(int num, char* str) {
+	sprintf(str,"%d",num);
+	return str;
+}
+
+int get_file_size(FILE* fp) {
+	fseek(fp,0,SEEK_END);
+	int file_size = ftell(fp);
+	fseek(fp,0,SEEK_SET);
+	return file_size;
+}
+void send_to_server(char* filename,int md5_mod, int* valid) {
+	
+	FILE* fp = fopen(filename,"r");
+	int fs = get_file_size(fp);
+	int rem = fs%4;
+	int read_len = fs/4;
+	int nbytes = 0;int i =0;
+	char* buf = (char*)malloc(read_len + rem);
+	char recv_buf[10];
+	memset(buf,0,read_len + rem);
+	if(md5_mod == 0) {
+		while(i < 4) {
+			if(i < 3) 
+				nbytes = fread(buf,1,read_len,fp);
+			if(i == 3)
+				nbytes = fread(buf,1,read_len + rem,fp);
+			if(valid[pattern_0[i][0]-1] == 1) {
+				//sending file content to server 'x'	
+				my_itoa(i+1,recv_buf);
+				send(sockfd[pattern_0[i][0]-1], recv_buf,strlen(recv_buf),0);
+				memset(recv_buf,0,10);
+				send(sockfd[pattern_0[i][0]-1], buf,nbytes,0);
+				recv(sockfd[pattern_0[i][0]-1], recv_buf,10,0);
+				memset(recv_buf,0,10);
+			} else {
+				printf("Invalid user. Try again\n");
+			}
+			if(valid[pattern_0[i][1]-1] == 1) {
+				//sending file content to server 'y'
+				my_itoa(i+1,recv_buf);
+				send(sockfd[pattern_0[i][1]-1], recv_buf,strlen(recv_buf),0);
+				memset(recv_buf,0,10);
+				send(sockfd[pattern_0[i][1]-1], buf,nbytes,0);
+				recv(sockfd[pattern_0[i][1]-1], recv_buf,10,0);
+				memset(buf,0,read_len + rem);
+				memset(recv_buf,0,10);
+				i++;
+			} else {
+				printf("Invalid user. Try again\n");
+			}
+
+		}
+	}
+		
+}
 
 int check_file_present_in_cache(char* path_name) {
 	if(access(path_name, F_OK) !=-1) return 1;
@@ -149,8 +213,8 @@ int put(char* filename) {
 	char buf[PKT_SIZE];
 	char md5sum[PKT_SIZE];
 	FILE* fp; 
-	char filepath[PKT_SIZE];
-	int md5_mod =0;
+	char filepath[PKT_SIZE];int valid[4];
+	int md5_mod =0;int j =0;char str[32];
 	memset(msg_header,0,PKT_SIZE);
 	strncpy(msg_header,msg_type,strlen(msg_type));
 	strncat(msg_header,comma,1);	
@@ -159,6 +223,13 @@ int put(char* filename) {
 	strncat(msg_header,password,strlen(password));	
 	strncat(msg_header,comma,1);	
 	strncat(msg_header,filename,strlen(filename));	
+	memset(str,0,32);
+	fp = fopen(filename,"r");
+	int fs = get_file_size(fp);
+	my_itoa(fs,str);
+	fclose(fp);
+	strncat(msg_header,comma,1);	
+	strncat(msg_header,str,strlen(str));	
 	calculate_md5sum(filename,md5sum);
 	memset(filepath,0,PKT_SIZE);
 	strncpy(filepath,MD5_DB,strlen(MD5_DB));
@@ -169,16 +240,24 @@ int put(char* filename) {
 		fwrite(filename,1,strlen(filename),fp);
 		fclose(fp);
 	}
-	md5_mod = atoi(&md5sum[strlen(md5sum)-2]);
+	md5_mod = atoi(&md5sum[strlen(md5sum)-2])/4;
 	printf("md5_mod=%d\n",md5_mod);
 	printf("msg_header%s*\n",msg_header);
-	send(sockfd[0],msg_header,strlen(msg_header),0);
+	while(j < 4) {
+		send(sockfd[j],msg_header,strlen(msg_header),0);
+		memset(buf,0,PKT_SIZE);
+		recv(sockfd[j], buf, PKT_SIZE,0);
+		if(strncmp(buf,"RDY",3)==0) {
+			valid[j] = 1;
+		}
+		if(strncmp(buf,"INV",3)==0) {
+			valid[j] = 0;
+		}
+		printf("server message:%s\n",buf);
+		j++;
+	}
+	send_to_server(filename, 0,valid);
 	memset(msg_header,0,PKT_SIZE);
-	memset(buf,0,PKT_SIZE);
-	printf("no seg\n");
-	recv(sockfd[0], buf, PKT_SIZE,0);
-	printf("server message:%s\n",buf);
-	
 	return 0;
 
 
@@ -190,6 +269,10 @@ int main(int argc, char** argv)
 	int input_type = 0;
 	char* tok = NULL;
 	char filename[50];
+	pattern_0[4][2] = {{1,4},{1,2},{2,3},{3,4}};
+	pattern_1[4][2] = {{1,2},{2,3},{3,4},{1,4}};
+	pattern_2[4][2] = {{2,3},{3,4},{1,4},{1,2}};
+	pattern_3[4][2] = {{3,4},{1,4},{1,2},{2,3}};
 	while(1) {
 		memset(user_input,0, 100);
 		if(fgets(user_input,100,stdin) == NULL) {

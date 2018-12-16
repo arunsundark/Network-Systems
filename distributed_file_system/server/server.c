@@ -17,9 +17,15 @@
 #include <arpa/inet.h>
 
 #define MAXLINE 1024 /*max text line length*/
+int check_directory_present(char* dirname) {
 
-
+	struct stat st = {0};
+	if (stat(dirname, &st) == -1) {
+		mkdir(dirname, 0700);
+	}
+}
 static volatile int keep_running = 1;
+
 int get_file_size(FILE* fp) {
 	fseek(fp,0,SEEK_END);
 	int file_size = ftell(fp);
@@ -78,21 +84,83 @@ int tcp_connection_init(int* sockfd, struct sockaddr_in* servaddr, int addrlen, 
 	} 
         return 0;
 }
+int check_user_credentials(char* username, char* password) {
+	FILE* fp = fopen("dfs.conf","r");
+	char * line = NULL;
+        size_t len = 0;
+        ssize_t read;
+	int i = 0;int j =0;
+	char* tok;int valid = 0;
+	char user_details[50];
+	
+        if(fp == NULL) {
+		exit(EXIT_FAILURE);
+	}
+	while ((read = getline(&line, &len, fp)) != -1) {
+        	memset(user_details,'\0',50);
+		strncpy(user_details,line,read);
+		tok = strtok(user_details,":");
+		if(strncmp(username,tok,strlen(username))==0) {
+			tok = strtok(NULL," ");
+			if(strncmp(password,tok,strlen(password))==0) {
+				valid = 1;
+				break;
+			}
+		}	
+			
+    	
+	}
+	return valid;
+}
+	
+int put(int connfd, char* filename, int fs, int serverno) {
+
+	int readlen = fs/4 + 3;
+	char buf = (char*) malloc(readlen);
+	memset(buf,0, readlen);
+	char sm_buf[10];int n;char name_buf[512];
+	n = recv(connfd,sm_buf,10,0);
+	n = recv(connfd,buf,readlen,0);
+	strncpy(
+	
+
+}
+
+
+
+
 
 //process client request
-int handle_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* clilen,int connfd)  {
-	int n;
+int handle_client_request(struct sockaddr_in* cliaddr, socklen_t* clilen,int connfd, char* portno)  {
+	int n,i=0;
 	char buf[MAXLINE];
-//	while(1) {
+	char* tok;
+	while(1) {
+		char request[6][64];
 		memset(buf, 0, MAXLINE);
 		n = recv(connfd, buf, MAXLINE,0);
 		printf("%s*\n",buf);
-		memset(buf, 0, MAXLINE);
-		strcpy(buf, "hello client dfc");
-		n = send(connfd, buf, strlen(buf),0);
-//	}		
-	
+		tok = strtok(buf,",");
 
+		while((tok != NULL)  && (i<5)) {
+			strcpy(request[i],tok);
+			printf("req_type=%s\n",request[i]);
+			tok = strtok(NULL," ");
+			i++;
+		}
+		memset(buf, 0, MAXLINE);
+
+		if(check_user_credentials(request[1], request[2]) == 0) {
+			strncpy(buf,"INV",3 );
+			n = send(connfd, buf, strlen(buf),0);
+			return 0;
+		}
+		if(strncmp(request[0],"PUT",3)==0) {
+			strncpy(buf,"RDY",3 );
+			n = send(connfd, buf, strlen(buf),0);
+			put(connfd,request[3],atoi(request[4]),atoi(portno)%10);
+		}
+	}
 	return 0;
 }
 void intHandler(int dummy) {
@@ -102,7 +170,7 @@ void intHandler(int dummy) {
 	exit(0);	
 }
 
-int process_tcp_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* clilen)  {
+int process_tcp_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen_t* clilen, char* portno)  {
 	int connfd;
 	int n =0;
 	signal(SIGINT, intHandler);
@@ -116,7 +184,7 @@ int process_tcp_client_request(int* sockfd, struct sockaddr_in* cliaddr, socklen
 		if( connfd > 0) {
 			if((childpid = fork ()) == 0 ) {//if it’s 0, it’s child process
 				printf ("%s\n","Child created for dealing with client requests");
-				handle_client_request( sockfd,  cliaddr, clilen, connfd);
+				handle_client_request(cliaddr, clilen, connfd, portno);
 				exit(0);
 			}
 			n++;
@@ -137,5 +205,5 @@ int main (int argc, char **argv)  {
 	tcp_connection_init( &sockfd, &servaddr, sizeof(servaddr), argv[1]);   
         pid_t childpid;
 	printf("%s\n","Server running...waiting for connections.");
-	process_tcp_client_request(&sockfd, &cliaddr, &clilen); 
+	process_tcp_client_request(&sockfd, &cliaddr, &clilen,argv[1]); 
 }
