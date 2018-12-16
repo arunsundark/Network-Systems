@@ -85,7 +85,7 @@ int tcp_connection_init(int* sockfd, struct sockaddr_in* servaddr, int addrlen, 
         return 0;
 }
 int check_user_credentials(char* username, char* password) {
-	FILE* fp = fopen("dfs.conf","r");
+	FILE* fp = fopen("DFS1/dfs.conf","r");
 	char * line = NULL;
         size_t len = 0;
         ssize_t read;
@@ -100,9 +100,11 @@ int check_user_credentials(char* username, char* password) {
         	memset(user_details,'\0',50);
 		strncpy(user_details,line,read);
 		tok = strtok(user_details,":");
+		printf("tok1=%s\n",tok);
 		if(strncmp(username,tok,strlen(username))==0) {
 			tok = strtok(NULL," ");
 			if(strncmp(password,tok,strlen(password))==0) {
+				printf("tok2=%s\n",tok);
 				valid = 1;
 				break;
 			}
@@ -113,17 +115,37 @@ int check_user_credentials(char* username, char* password) {
 	return valid;
 }
 	
-int put(int connfd, char* filename, int fs, int serverno) {
+int put(int connfd, char params[][64], int fs, int serverno) {
 
 	int readlen = fs/4 + 3;
-	char buf = (char*) malloc(readlen);
+	char* buf = (char*) malloc(readlen);
 	memset(buf,0, readlen);
 	char sm_buf[10];int n;char name_buf[512];
 	n = recv(connfd,sm_buf,10,0);
 	n = recv(connfd,buf,readlen,0);
-	strncpy(
-	
-
+	memset(sm_buf,0,10);
+	my_itoa(serverno,sm_buf);
+	memset(name_buf, 0,512);
+	strncpy(name_buf,"DFS",3);
+	strncat(name_buf,sm_buf,1);
+	strncat(name_buf,params[1], strlen(params[1]));
+	check_directory_present(name_buf);
+	strncat(name_buf,"/.",2);
+	strncat(name_buf,params[3],strlen(params[3]));
+	memset(sm_buf,0,10);
+	recv(connfd,sm_buf,10,0);
+	strncat(name_buf,".",1);
+	strncat(name_buf,sm_buf,strlen(sm_buf));
+	FILE* fp = fopen(name_buf, "w");
+	memset(buf,0,readlen);
+	n = recv(connfd,buf,readlen,0);
+	n = fwrite(buf,1,n,fp);
+	memset(sm_buf,0,10);
+	strncpy(sm_buf,"ACK",3);
+	n = send(connfd,sm_buf,3,0);
+	printf("Done storing\n");
+	fclose(fp);
+	return 0;
 }
 
 
@@ -145,7 +167,7 @@ int handle_client_request(struct sockaddr_in* cliaddr, socklen_t* clilen,int con
 		while((tok != NULL)  && (i<5)) {
 			strcpy(request[i],tok);
 			printf("req_type=%s\n",request[i]);
-			tok = strtok(NULL," ");
+			tok = strtok(NULL,",");
 			i++;
 		}
 		memset(buf, 0, MAXLINE);
@@ -158,7 +180,8 @@ int handle_client_request(struct sockaddr_in* cliaddr, socklen_t* clilen,int con
 		if(strncmp(request[0],"PUT",3)==0) {
 			strncpy(buf,"RDY",3 );
 			n = send(connfd, buf, strlen(buf),0);
-			put(connfd,request[3],atoi(request[4]),atoi(portno)%10);
+			put(connfd,request,atoi(request[4]),atoi(portno)%10);
+			put(connfd,request,atoi(request[4]),atoi(portno)%10);
 		}
 	}
 	return 0;
