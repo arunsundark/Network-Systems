@@ -23,11 +23,6 @@ char password[25];
 char dfs_ip[MAX_SERVERS][25];
 char dfs_port[MAX_SERVERS][10];
 int dfs_active[MAX_SERVERS];
-//int pattern_0[4][2];
-int pattern_1[4][2];
-int pattern_2[4][2];
-int pattern_3[4][2];
-
 char* my_itoa(int num, char* str) {
 	sprintf(str,"%d",num);
 	return str;
@@ -39,9 +34,9 @@ int get_file_size(FILE* fp) {
 	fseek(fp,0,SEEK_SET);
 	return file_size;
 }
-void send_to_server(char* filename,int md5_mod, int* valid) {
-	int pattern_0[4][2] = {{1,4},{1,2},{2,3},{3,4}};
-//	
+
+
+void send_with_pattern(char* filename,int* valid, int pattern[][2]) {
 	FILE* fp = fopen(filename,"r");
 	int fs = get_file_size(fp);
 	int rem = fs%4;
@@ -50,42 +45,56 @@ void send_to_server(char* filename,int md5_mod, int* valid) {
 	char* buf = (char*)malloc(read_len + rem);
 	char recv_buf[10];
 	memset(buf,0,read_len + rem);
-	if(md5_mod == 0) {
-		while(i < 4) {
-			if(i < 3) 
-				nbytes = fread(buf,1,read_len,fp);
-			if(i == 3)
-				nbytes = fread(buf,1,read_len + rem,fp);
-			if(valid[pattern_0[i][0]-1] == 1) {
-				//sending file content to server 'x'	
-				my_itoa(i+1,recv_buf);
-				send(sockfd[pattern_0[i][0]-1], recv_buf,strlen(recv_buf),0);
-				printf("part no is=%s\n",recv_buf);
-				memset(recv_buf,0,10);
-				send(sockfd[pattern_0[i][0]-1], buf,nbytes,0);
-				recv(sockfd[pattern_0[i][0]-1], recv_buf,10,0);
-				printf("server ack=%s\n",recv_buf);
-				memset(recv_buf,0,10);
-			} else {
-				printf("Invalid user. Try again\n");
-			}
-			if(valid[pattern_0[i][1]-1] == 1) {
-				//sending file content to server 'y'
-				my_itoa(i+1,recv_buf);
-				send(sockfd[pattern_0[i][1]-1], recv_buf,strlen(recv_buf),0);
-				memset(recv_buf,0,10);
-				send(sockfd[pattern_0[i][1]-1], buf,nbytes,0);
-				recv(sockfd[pattern_0[i][1]-1], recv_buf,10,0);
-				memset(buf,0,read_len + rem);
-				memset(recv_buf,0,10);
-				
-			} else {
-				printf("Invalid user. Try again\n");
-			}
-			i++;
+	while(i < 4) {
+		if(i < 3) 
+			nbytes = fread(buf,1,read_len,fp);
+		if(i == 3)
+			nbytes = fread(buf,1,read_len + rem,fp);
+		if(valid[pattern[i][0]-1] == 1) {
+			//sending file content to server 'x'	
+			my_itoa(i+1,recv_buf);
+			send(sockfd[pattern[i][0]-1], recv_buf,strlen(recv_buf),0);
+			printf("part no is=%s\n",recv_buf);
+			memset(recv_buf,0,10);
+			send(sockfd[pattern[i][0]-1], buf,nbytes,0);
+			recv(sockfd[pattern[i][0]-1], recv_buf,10,0);
+			printf("server ack=%s\n",recv_buf);
+			memset(recv_buf,0,10);
+		} else {
+			printf("Invalid user. Try again\n");
 		}
+		if(valid[pattern[i][1]-1] == 1) {
+			//sending file content to server 'y'
+			my_itoa(i+1,recv_buf);
+			send(sockfd[pattern[i][1]-1], recv_buf,strlen(recv_buf),0);
+			memset(recv_buf,0,10);
+			send(sockfd[pattern[i][1]-1], buf,nbytes,0);
+			recv(sockfd[pattern[i][1]-1], recv_buf,10,0);
+			memset(buf,0,read_len + rem);
+			memset(recv_buf,0,10);
+
+		} else {
+			printf("Invalid user. Try again\n");
+		}
+		i++;
 	}
+}
 		
+void send_to_server(char* filename,int md5_mod, int* valid) {
+	int pattern_0[4][2] = {{1,4},{1,2},{2,3},{3,4}};
+	int pattern_1[4][2] = {{1,2},{2,3},{3,4},{1,4}};
+	int pattern_2[4][2] = {{2,3},{3,4},{1,4},{1,2}};
+	int pattern_3[4][2] = {{3,4},{1,4},{1,2},{2,3}};
+	
+	if( md5_mod == 0) { 
+		send_with_pattern(filename, valid, pattern_0); 
+	} else if (md5_mod == 1) { 
+		send_with_pattern(filename, valid, pattern_1); 
+	} else if (md5_mod == 2) {
+		send_with_pattern(filename, valid, pattern_2);
+	} else  { 
+		send_with_pattern(filename, valid, pattern_3);
+	}
 }
 
 int check_file_present_in_cache(char* path_name) {
@@ -240,7 +249,7 @@ int put(char* filename) {
 		fwrite(filename,1,strlen(filename),fp);
 		fclose(fp);
 	}
-	md5_mod = atoi(&md5sum[strlen(md5sum)-2])/4;
+	md5_mod = atoi(&md5sum[strlen(md5sum)-2])%4;
 	printf("md5_mod=%d\n",md5_mod);
 	printf("msg_header%s*\n",msg_header);
 	while(j < 4) {
