@@ -120,29 +120,39 @@ int put(int connfd, char params[][64], int fs, int serverno) {
 	int readlen = fs/4 + 3;
 	char* buf = (char*) malloc(readlen);
 	memset(buf,0, readlen);
+	char pn[10];memset(pn,0,10);
 	char sm_buf[10];int n;char name_buf[512];
+	memset(sm_buf,0,10);
+        // receiving part number 
 	n = recv(connfd,sm_buf,10,0);
+	printf("part no is=%s\n",sm_buf);
+	
+	// receiving file content for part number 
 	n = recv(connfd,buf,readlen,0);
+	printf("rx data=%s\n",buf);
+	strncpy(pn,sm_buf,strlen(sm_buf));
 	memset(sm_buf,0,10);
 	my_itoa(serverno,sm_buf);
 	memset(name_buf, 0,512);
 	strncpy(name_buf,"DFS",3);
 	strncat(name_buf,sm_buf,1);
+	strncat(name_buf,"/",1);
 	strncat(name_buf,params[1], strlen(params[1]));
+	printf("dirname=%s*\n",name_buf);
 	check_directory_present(name_buf);
 	strncat(name_buf,"/.",2);
 	strncat(name_buf,params[3],strlen(params[3]));
 	memset(sm_buf,0,10);
-	recv(connfd,sm_buf,10,0);
+	
 	strncat(name_buf,".",1);
-	strncat(name_buf,sm_buf,strlen(sm_buf));
+	strncat(name_buf,pn,strlen(pn));
+	printf("pathname=%s*\n",name_buf);
 	FILE* fp = fopen(name_buf, "w");
-	memset(buf,0,readlen);
-	n = recv(connfd,buf,readlen,0);
 	n = fwrite(buf,1,n,fp);
 	memset(sm_buf,0,10);
 	strncpy(sm_buf,"ACK",3);
 	n = send(connfd,sm_buf,3,0);
+	memset(sm_buf,0,10);
 	printf("Done storing\n");
 	fclose(fp);
 	return 0;
@@ -179,6 +189,7 @@ int handle_client_request(struct sockaddr_in* cliaddr, socklen_t* clilen,int con
 		}
 		if(strncmp(request[0],"PUT",3)==0) {
 			strncpy(buf,"RDY",3 );
+			printf("valid user\n");
 			n = send(connfd, buf, strlen(buf),0);
 			put(connfd,request,atoi(request[4]),atoi(portno)%10);
 			put(connfd,request,atoi(request[4]),atoi(portno)%10);

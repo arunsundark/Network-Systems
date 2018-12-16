@@ -23,13 +23,10 @@ char password[25];
 char dfs_ip[MAX_SERVERS][25];
 char dfs_port[MAX_SERVERS][10];
 int dfs_active[MAX_SERVERS];
-int pattern_0[4][2];
+//int pattern_0[4][2];
 int pattern_1[4][2];
 int pattern_2[4][2];
 int pattern_3[4][2];
-
-
-
 
 char* my_itoa(int num, char* str) {
 	sprintf(str,"%d",num);
@@ -43,7 +40,8 @@ int get_file_size(FILE* fp) {
 	return file_size;
 }
 void send_to_server(char* filename,int md5_mod, int* valid) {
-	
+	int pattern_0[4][2] = {{1,4},{1,2},{2,3},{3,4}};
+//	
 	FILE* fp = fopen(filename,"r");
 	int fs = get_file_size(fp);
 	int rem = fs%4;
@@ -62,9 +60,11 @@ void send_to_server(char* filename,int md5_mod, int* valid) {
 				//sending file content to server 'x'	
 				my_itoa(i+1,recv_buf);
 				send(sockfd[pattern_0[i][0]-1], recv_buf,strlen(recv_buf),0);
+				printf("part no is=%s\n",recv_buf);
 				memset(recv_buf,0,10);
 				send(sockfd[pattern_0[i][0]-1], buf,nbytes,0);
 				recv(sockfd[pattern_0[i][0]-1], recv_buf,10,0);
+				printf("server ack=%s\n",recv_buf);
 				memset(recv_buf,0,10);
 			} else {
 				printf("Invalid user. Try again\n");
@@ -78,11 +78,11 @@ void send_to_server(char* filename,int md5_mod, int* valid) {
 				recv(sockfd[pattern_0[i][1]-1], recv_buf,10,0);
 				memset(buf,0,read_len + rem);
 				memset(recv_buf,0,10);
-				i++;
+				
 			} else {
 				printf("Invalid user. Try again\n");
 			}
-
+			i++;
 		}
 	}
 		
@@ -138,7 +138,7 @@ void get_configuration() {
 
 
 int tcp_connection_init() {
-	for(int i =0; i <1 ; i++) {
+	for(int i =0; i <MAX_SERVERS ; i++) {
 		// socket create and varification 
     		sockfd[i] = socket(AF_INET, SOCK_STREAM, 0); 
     		if (sockfd[i] == -1) { 
@@ -250,7 +250,10 @@ int put(char* filename) {
 		if(strncmp(buf,"RDY",3)==0) {
 			valid[j] = 1;
 		}
-		if(strncmp(buf,"INV",3)==0) {
+		else if(strncmp(buf,"INV",3)==0) {
+			valid[j] = 0;
+		}
+		else {
 			valid[j] = 0;
 		}
 		printf("server message:%s\n",buf);
@@ -269,12 +272,13 @@ int main(int argc, char** argv)
 	int input_type = 0;
 	char* tok = NULL;
 	char filename[50];
-	pattern_0[4][2] = {{1,4},{1,2},{2,3},{3,4}};
-	pattern_1[4][2] = {{1,2},{2,3},{3,4},{1,4}};
-	pattern_2[4][2] = {{2,3},{3,4},{1,4},{1,2}};
-	pattern_3[4][2] = {{3,4},{1,4},{1,2},{2,3}};
+	//pattern_0[4][2] = {{1,4},{1,2},{2,3},{3,4}};
+//	pattern_1[4][2] = {{1,2},{2,3},{3,4},{1,4}};
+//	pattern_2[4][2] = {{2,3},{3,4},{1,4},{1,2}};
+//	pattern_3[4][2] = {{3,4},{1,4},{1,2},{2,3}};
 	while(1) {
 		memset(user_input,0, 100);
+		printf("Enter the command\n");
 		if(fgets(user_input,100,stdin) == NULL) {
             		printf("Error in getting input \n");
             		continue;
