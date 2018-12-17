@@ -25,7 +25,11 @@ int check_directory_present(char* dirname) {
 	}
 }
 static volatile int keep_running = 1;
-
+//checks if file is present in the path
+int check_file_present_in_cache(char* path_name) {
+	if(access(path_name, F_OK) !=-1) return 1;
+	else return -1;
+}
 int get_file_size(FILE* fp) {
 	fseek(fp,0,SEEK_END);
 	int file_size = ftell(fp);
@@ -158,6 +162,74 @@ int put(int connfd, char params[][64], int fs, int serverno) {
 	return 0;
 }
 
+int get(int connfd, char params[][64], int serverno) {
+	char sm_buf[10];char name_buf[512];char f_buf[512];int ct=0;
+	memset(sm_buf, 0,10);char filepath[2][1024];
+	my_itoa(serverno,sm_buf);char part[10];int n =0;
+	memset(name_buf, 0,512);
+	memset(part,0,10);
+	strncpy(name_buf,"DFS",3);
+	strncat(name_buf,sm_buf,1);
+	strncat(name_buf,"/",1);
+	strncat(name_buf,params[1], strlen(params[1]));
+	strncat(name_buf,"/",1);
+	n = recv(connfd,part,10,0);
+	
+	if(strncmp(part,"PRT",3)==0) {
+		memset(part,0,10);
+		printf("PRT RXED\n");	
+		for(int i =0; i < 4;i++) {
+			memset(f_buf,0,512);
+
+			strncpy(f_buf,name_buf,strlen(name_buf));
+			strncat(f_buf,".",1);
+			strncat(f_buf,params[3],strlen(params[3]));
+			strncat(f_buf,".",1);
+			memset(sm_buf,0,10);
+			my_itoa(i+1,sm_buf);
+			strncat(f_buf,sm_buf,1);
+
+
+			if(check_file_present_in_cache(f_buf)==1) {
+				memset(filepath[ct],0,1024);
+				strncpy(filepath[ct],f_buf,strlen(f_buf));
+				ct++;
+				strncat(part,sm_buf,1);
+				strncat(part,",",1);
+			}
+
+		}
+		n = send(connfd,part,strlen(part),0);
+		printf("PRT SENT:%s\n",part);
+		memset(sm_buf,0,10);
+		n = recv(connfd,sm_buf,10,0);
+		printf("fs rxed%s\n",sm_buf);
+		if(strncmp(sm_buf,"FS",2)==0) {
+			memset(sm_buf,0,10);
+			FILE* f1 = fopen(filepath[0],"r");
+			int readlen = get_file_size(f1);
+			fclose(f1);
+			my_itoa(readlen,sm_buf);
+			n = send(connfd,sm_buf,strlen(sm_buf),0);
+			printf("FS SENT%s\n",sm_buf);
+			memset(sm_buf,0,10);
+			readlen = readlen;
+			char* buf = (char*)malloc(readlen + 3);
+			for(int j =0; j < 2;j++) {
+			
+				n = recv(connfd,sm_buf,10,0);
+				if(strncmp(sm_buf,"TX",2)==0) {
+					printf("tx rxed\n");
+					FILE* fp = fopen(filepath[j],"r");
+					n = fread(buf,1,readlen,fp);
+					n = send(connfd,buf,n,0);
+					fclose(fp);
+				}
+			}
+		}	
+	}
+}
+	
 
 
 
@@ -193,6 +265,13 @@ int handle_client_request(struct sockaddr_in* cliaddr, socklen_t* clilen,int con
 			n = send(connfd, buf, strlen(buf),0);
 			put(connfd,request,atoi(request[4]),atoi(portno)%10);
 			put(connfd,request,atoi(request[4]),atoi(portno)%10);
+		}
+		if(strncmp(request[0],"GET",3)==0) {
+			strncpy(buf,"RDY",3 );
+			printf("valid user\n");
+			n = send(connfd, buf, strlen(buf),0);
+			get(connfd,request, atoi(portno)%10);
+			
 		}
 	}
 	return 0;

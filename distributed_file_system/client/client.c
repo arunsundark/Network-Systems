@@ -169,7 +169,7 @@ int tcp_connection_init() {
         		printf("connection with the Server %d failed...\n",i);
 			printf("Error is:%s\n",strerror(errno));
 			dfs_active[i] = 0; 
-        		return 0; 
+        		 
     		} else {
         		printf("connected to the server %d..\n",i); 
 			dfs_active[i] = 1;
@@ -195,13 +195,111 @@ void calculate_md5sum(char* filename, unsigned char* md5sum) {
 	for(n=0; n<MD5_DIGEST_LENGTH; n++)
 		sprintf(&md5sum[2*n],"%02x", out[n]);
 	printf("\n");
-}	
+}
+int check_file_availability(char* filename, int* valid, char* msg_header) {
+	char buf[10];int retval = 0;
+	int n = 0;int active_count =0;
+	for(int i = 0; i < MAX_SERVERS; i++) {
+		if(dfs_active[i] == 1) {
+			memset(buf,0,10);
+			n = send(sockfd[i],msg_header,strlen(msg_header),0);
+			n = recv(sockfd[i], buf, 10,0);
+			if(strncmp(buf,"RDY",3)==0) {
+				valid[i] = 1;
+				active_count++;
+			}
+		}
+	}
+	retval = valid[0] * valid[2];
+	if( retval == 1) {
+		return (retval -1);
+	} else {
+		retval = valid[1] * valid[3];
+		if (retval == 1) return retval; 
+	}
+	return -1;		
+		
+}
+void recv_by_part(char* filename, int* part, int avail) {
+	char sm_buf[32]; char tm_buf[32];
+	int n =0;int fs = 0;int readlen = 0;
+	strncpy(sm_buf,"FS",2);
+	FILE* fp = fopen(filename,"w");
+	for( int j =0; j < 3;j= j + 2) {
+		n = send(sockfd[j + avail],sm_buf,strlen(sm_buf),0);
+		n = recv(sockfd[j + avail],tm_buf,32,0);
+	}
+	fs = atoi(tm_buf);
+	memset(tm_buf,0,32);
+	readlen = fs + 3;
+	char* buf = (char*) malloc(readlen);
+	memset(buf,0,readlen);
+	memset(sm_buf,0,32);
+	memset(tm_buf,0,32);
+	strncpy(sm_buf,"TX",2);
+	for( int i =0; i < MAX_SERVERS; i++) {
+		n = send(sockfd[part[i]],sm_buf,strlen(sm_buf),0);
+		n = recv(sockfd[part[i]],buf,readlen,0);
+		fwrite(buf,1,n,fp);
+		memset(buf,0,readlen);
+	}
+	fclose(fp);
+}
+			
+	
+
+void recv_from_server(int avail, char* filename, int* valid) {
+	char sm_buf[32];int n =0;char* tok;
+	char temp_buf[32];int part[4];
+	printf("in recv from server\n");
+	if(avail == 0) {
+		memset(sm_buf,0,32);
+		strncpy(sm_buf,"PRT",3);
+		n = send(sockfd[0],sm_buf,strlen(sm_buf),0);
+		n = send(sockfd[2],sm_buf,strlen(sm_buf),0);
+		memset(sm_buf,0,32);
+		n = recv(sockfd[0], sm_buf, 32,0);
+		memset(temp_buf,0,32);
+		n = recv(sockfd[2], temp_buf, 32,0);
+		tok = strtok(sm_buf,",");
+		part[atoi(tok) - 1] = 0;
+		tok = strtok(NULL," ");
+		part[atoi(tok) - 1] = 0;
+		tok = NULL;
+		tok = strtok(temp_buf,",");
+		part[atoi(tok) - 1] = 2;
+		tok = strtok(NULL,",");
+		part[atoi(tok) - 1] = 2;
+	}
+ 	if(avail == 1) {
+		memset(sm_buf,0,32);
+		n = send(sockfd[1],sm_buf,strlen(sm_buf),0);
+		n = send(sockfd[3],sm_buf,strlen(sm_buf),0);
+		memset(sm_buf,0,32);
+		n = recv(sockfd[1], sm_buf, 32,0);
+		memset(temp_buf,0,32);
+		n = recv(sockfd[3], temp_buf, 32,0);
+		tok = strtok(sm_buf,",");
+		part[atoi(tok) - 1] = 1;
+		tok = strtok(NULL," ");
+		part[atoi(tok) - 1] = 1;
+		tok = NULL;
+		tok = strtok(temp_buf,",");
+		part[atoi(tok) - 1] = 3;
+		tok = strtok(NULL,",");
+		part[atoi(tok) - 1] = 3;
+	}
+	printf("part:%d,%d,%d,%d\n",part[0],part[1],part[2],part[3]);
+	recv_by_part(filename, part,avail);
+}
+	
 int get(char* filename) {
 	char* msg_type = "GET";
 	char* comma = ",";
-	char* msg_header = (char*) malloc(1024);
-	char* buf = (char*) malloc(1024);
-	memset(msg_header,0,1024);
+	char* msg_header = (char*) malloc(PKT_SIZE);
+	char* buf = (char*) malloc(PKT_SIZE);
+	int valid[4];int file_avail =0;
+	memset(msg_header,0,PKT_SIZE);
 	strncpy(msg_header,msg_type,strlen(msg_type));
 	strncat(msg_header,comma,1);	
 	strncat(msg_header,username,strlen(username));	
@@ -209,11 +307,15 @@ int get(char* filename) {
 	strncat(msg_header,password,strlen(password));	
 	strncat(msg_header,comma,1);	
 	strncat(msg_header,filename,strlen(filename));	
-	send(sockfd[0],msg_header,strlen(msg_header),0);
-	memset(msg_header,0,1024);
-	memset(buf,0,1024);
-	recv(sockfd[0], buf, 100,0);
-	return 0;
+	printf("Get msg%s\n",msg_header);
+	file_avail = check_file_availability(filename, valid, msg_header);
+	if(file_avail < 0) {
+		printf("Servers are down. Please try later\n");
+		return 0;
+	} else { 
+		recv_from_server(file_avail, filename,valid);
+		return 0;
+	}
 }       
 int put(char* filename) {
 	char* msg_type = "PUT";
@@ -253,19 +355,22 @@ int put(char* filename) {
 	printf("md5_mod=%d\n",md5_mod);
 	printf("msg_header%s*\n",msg_header);
 	while(j < 4) {
-		send(sockfd[j],msg_header,strlen(msg_header),0);
-		memset(buf,0,PKT_SIZE);
-		recv(sockfd[j], buf, PKT_SIZE,0);
-		if(strncmp(buf,"RDY",3)==0) {
-			valid[j] = 1;
+		if(dfs_active[j] == 1) {
+			send(sockfd[j],msg_header,strlen(msg_header),0);
+			memset(buf,0,PKT_SIZE);
+			recv(sockfd[j], buf, PKT_SIZE,0);
+			if(strncmp(buf,"RDY",3)==0) {
+				valid[j] = 1;
+			}
+			else if(strncmp(buf,"INV",3)==0) {
+				valid[j] = 0;
+			}
+			else {
+				valid[j] = 0;
+			}
+		
+			printf("server message:%s\n",buf);
 		}
-		else if(strncmp(buf,"INV",3)==0) {
-			valid[j] = 0;
-		}
-		else {
-			valid[j] = 0;
-		}
-		printf("server message:%s\n",buf);
 		j++;
 	}
 	send_to_server(filename, 0,valid);
@@ -281,10 +386,6 @@ int main(int argc, char** argv)
 	int input_type = 0;
 	char* tok = NULL;
 	char filename[50];
-	//pattern_0[4][2] = {{1,4},{1,2},{2,3},{3,4}};
-//	pattern_1[4][2] = {{1,2},{2,3},{3,4},{1,4}};
-//	pattern_2[4][2] = {{2,3},{3,4},{1,4},{1,2}};
-//	pattern_3[4][2] = {{3,4},{1,4},{1,2},{2,3}};
 	while(1) {
 		memset(user_input,0, 100);
 		printf("Enter the command\n");
