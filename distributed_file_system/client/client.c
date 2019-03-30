@@ -35,6 +35,13 @@ int get_file_size(FILE* fp) {
 	return file_size;
 }
 
+void encdec(char* str) {
+	char key = 'P';
+	int len = strlen(str);
+	for(int i =0; i < len; i++) {
+		str[i] = str[i] ^ key;
+	}
+}
 
 void send_with_pattern(char* filename,int* valid, int pattern[][2]) {
 	FILE* fp = fopen(filename,"r");
@@ -56,6 +63,7 @@ void send_with_pattern(char* filename,int* valid, int pattern[][2]) {
 			send(sockfd[pattern[i][0]-1], recv_buf,strlen(recv_buf),0);
 			printf("part no is=%s\n",recv_buf);
 			memset(recv_buf,0,10);
+			//encdec(buf);
 			send(sockfd[pattern[i][0]-1], buf,nbytes,0);
 			recv(sockfd[pattern[i][0]-1], recv_buf,10,0);
 			printf("server ack=%s\n",recv_buf);
@@ -68,6 +76,7 @@ void send_with_pattern(char* filename,int* valid, int pattern[][2]) {
 			my_itoa(i+1,recv_buf);
 			send(sockfd[pattern[i][1]-1], recv_buf,strlen(recv_buf),0);
 			memset(recv_buf,0,10);
+			//encdec(buf);
 			send(sockfd[pattern[i][1]-1], buf,nbytes,0);
 			recv(sockfd[pattern[i][1]-1], recv_buf,10,0);
 			memset(buf,0,read_len + rem);
@@ -240,6 +249,7 @@ void recv_by_part(char* filename, int* part, int avail) {
 	for( int i =0; i < MAX_SERVERS; i++) {
 		n = send(sockfd[part[i]],sm_buf,strlen(sm_buf),0);
 		n = recv(sockfd[part[i]],buf,readlen,0);
+		//encdec(buf);
 		fwrite(buf,1,n,fp);
 		memset(buf,0,readlen);
 	}
@@ -253,6 +263,7 @@ void recv_from_server(int avail, char* filename, int* valid) {
 	char temp_buf[32];int part[4];
 	printf("in recv from server\n");
 	if(avail == 0) {
+		printf("in avl 0\n");
 		memset(sm_buf,0,32);
 		strncpy(sm_buf,"PRT",3);
 		n = send(sockfd[0],sm_buf,strlen(sm_buf),0);
@@ -273,6 +284,7 @@ void recv_from_server(int avail, char* filename, int* valid) {
 	}
  	if(avail == 1) {
 		memset(sm_buf,0,32);
+		printf("in avl 1\n");
 		n = send(sockfd[1],sm_buf,strlen(sm_buf),0);
 		n = send(sockfd[3],sm_buf,strlen(sm_buf),0);
 		memset(sm_buf,0,32);
@@ -307,7 +319,7 @@ int get(char* filename) {
 	strncat(msg_header,password,strlen(password));	
 	strncat(msg_header,comma,1);	
 	strncat(msg_header,filename,strlen(filename));	
-	printf("Get msg%s\n",msg_header);
+	printf("Get msg:%s\n",msg_header);
 	file_avail = check_file_availability(filename, valid, msg_header);
 	if(file_avail < 0) {
 		printf("Servers are down. Please try later\n");
@@ -379,6 +391,109 @@ int put(char* filename) {
 
 
 }
+int ls_util(char* msg_header) {
+	char buf[10];int retval = 0;
+	int n = 0;int active_count =0;
+	int valid[4];
+	for(int i = 0; i < MAX_SERVERS; i++) {
+		if(dfs_active[i] == 1) {
+			memset(buf,0,10);
+			n = send(sockfd[i],msg_header,strlen(msg_header),0);
+			n = recv(sockfd[i], buf, 10,0);
+			if(strncmp(buf,"RDY",3)==0) {
+				valid[i] = 1;
+				active_count++;
+			}
+			else {
+				valid[i] = 0;
+			}
+		}
+	}
+	retval = valid[0] * valid[2];
+	if( retval == 1) {
+		return (retval -1);
+	} else {
+		retval = valid[1] * valid[3];
+		if (retval == 1) return retval; 
+	}
+	return -1;
+}
+
+void gen_getline(char* fn) {
+
+	FILE * fp;
+	char * line = NULL;
+	size_t len = 0;
+	ssize_t read;
+
+	fp = fopen("list.txt", "r");
+	if (fp == NULL)
+		return;
+	int exist = 0;
+	while ((read = getline(&line, &len, fp)) != -1) {
+		if(strncmp(fn,line,strlen(fn))==0) {
+			exist = 1;
+		}
+
+	}
+	char buf[100];
+	memset(buf,0,100);
+	strncpy(buf,fn,strlen(fn));
+	strncat(buf,"\n",1);
+	fclose(fp);
+	fp = fopen("list.txt","a");
+	fwrite(buf,1,strlen(buf),fp);
+	fclose(fp);
+	if (line)
+		free(line);
+	
+
+
+}
+
+void ls(){
+	FILE * fp;
+    	char * line = NULL;
+    	size_t len = 0;
+   	ssize_t read;
+	char list[100][512];
+	char msg_type[512];
+	memset(msg_type,0,512);
+	strncpy(msg_type,"LS,",3);
+	strncat(msg_type,username,strlen(username));
+	strncat(msg_type,",",1);
+	strncat(msg_type,password,strlen(password));
+	strncat(msg_type,",",1);
+	char* msg_header = (char*) malloc(1024);
+    	fp = fopen("list.txt", "r");
+    	if (fp == NULL)
+        	return ;
+	int dec_var;int ct = 0;
+    	while ((read = getline(&line, &len, fp)) != -1) {
+        	
+		strncpy(msg_header,msg_type,strlen(msg_type));
+		strncat(msg_header,line,strlen(line));
+		dec_var = ls_util(msg_header);
+		if (dec_var >=0) {
+			memset(list[ct],0,512);
+			strncpy(list[ct],line,strlen(line));
+			ct++;printf("%s\n",list[ct]);
+
+		}	
+        	else {
+			memset(list[ct],0,512);
+			strncpy(list[ct],line,strlen(line));
+			strncat(list[ct],"  [Incomplete]",strlen("  [Incomplete]"));
+			printf("%s\n",list[ct]);
+			ct++;
+ 	   	}
+	}
+	
+    	fclose(fp);
+    	if (line)
+        	free(line);
+   
+}
 int main(int argc, char** argv)
 {	char user_input[100];
 	get_configuration();
@@ -398,15 +513,18 @@ int main(int argc, char** argv)
 				input_type = 1;
 				strcpy(filename,strtok(NULL,"\n"));
 				printf("filename *%s*\n",filename);
+				gen_getline(filename);
 				get(filename);
 			} else if(strncmp("put",tok,3)==0) {
 				input_type = 2;
 				strcpy(filename,strtok(NULL,"\n"));
 				printf("filename *%s*\n",filename);
+				gen_getline(filename);
 				put(filename);
 
 			} else if(strncmp("ls",tok,2)==0) {
 				input_type = 3;
+				ls();
 			} else {
 				printf("Invalid command, please try again\n");
 				continue;

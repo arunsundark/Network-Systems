@@ -133,7 +133,7 @@ int put(int connfd, char params[][64], int fs, int serverno) {
 	
 	// receiving file content for part number 
 	n = recv(connfd,buf,readlen,0);
-	printf("rx data=%s\n",buf);
+	printf("rxed data\n");
 	strncpy(pn,sm_buf,strlen(sm_buf));
 	memset(sm_buf,0,10);
 	my_itoa(serverno,sm_buf);
@@ -174,7 +174,7 @@ int get(int connfd, char params[][64], int serverno) {
 	strncat(name_buf,params[1], strlen(params[1]));
 	strncat(name_buf,"/",1);
 	n = recv(connfd,part,10,0);
-	
+	printf("in get\n");
 	if(strncmp(part,"PRT",3)==0) {
 		memset(part,0,10);
 		printf("PRT RXED\n");	
@@ -242,11 +242,14 @@ int handle_client_request(struct sockaddr_in* cliaddr, socklen_t* clilen,int con
 	while(1) {
 		char request[6][64];
 		memset(buf, 0, MAXLINE);
+		
 		n = recv(connfd, buf, MAXLINE,0);
+		printf("******************** NEW REQ ****************\n");
 		printf("%s*\n",buf);
 		tok = strtok(buf,",");
-
+		i = 0;
 		while((tok != NULL)  && (i<5)) {
+			memset(request[i],0,64);
 			strcpy(request[i],tok);
 			printf("req_type=%s\n",request[i]);
 			tok = strtok(NULL,",");
@@ -270,9 +273,19 @@ int handle_client_request(struct sockaddr_in* cliaddr, socklen_t* clilen,int con
 			strncpy(buf,"RDY",3 );
 			printf("valid user\n");
 			n = send(connfd, buf, strlen(buf),0);
+			printf("called get\n");
 			get(connfd,request, atoi(portno)%10);
 			
 		}
+		if(strncmp(request[0],"LS",2)==0) {
+			strncpy(buf,"RDY",3 );
+			printf("valid user\n");
+			n = send(connfd, buf, strlen(buf),0);
+			
+		
+			
+		}
+		printf("******************* DONE **********************\n");
 	}
 	return 0;
 }
